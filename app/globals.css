@@ -1242,3 +1242,7 @@ dialog.sheet .sheet-head h2 { font-family: var(--font-display); }
 .who-wrap { position: relative; display: grid; }
 .who-wrap .card-menu { top: auto; bottom: 0.9rem; right: 0.9rem; }
 .who-wrap .who-tile .emoji { right: 0.7rem; }
+
+/* "Take a photo" opens the camera on phones; computers have no camera picker, so hide it there */
+.drop + .camera-btn { width: 100%; justify-content: center; margin-top: 0.6rem; }
+@media (hover: hover) and (pointer: fine) { .camera-btn { display: none; } }

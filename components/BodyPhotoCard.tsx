@@ -14,6 +14,7 @@ export default function BodyPhotoCard({ profile, onChanged }: { profile: StylePr
   const { session } = useAuth()
   const { confirm, toast } = useFeedback()
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState<string | null>(null)
   const [prepared, setPrepared] = useState<PreparedImage | null>(null)
   const [removeBg, setRemoveBg] = useState(true)
@@ -101,6 +102,7 @@ export default function BodyPhotoCard({ profile, onChanged }: { profile: StylePr
           <div className="checker"><img className="body-preview" src={url} alt="Your try-on photo" /></div>
           <div className="row">
             <button className="btn small" onClick={() => fileRef.current?.click()}><Icon name="upload" /> Replace</button>
+            <button className="btn small camera-btn" onClick={() => cameraRef.current?.click()}><Icon name="camera" /> Take a new one</button>
             <button className="btn small danger" onClick={remove} disabled={!!busy}><Icon name="trash" /> Delete photo</button>
           </div>
         </>
@@ -113,12 +115,31 @@ export default function BodyPhotoCard({ profile, onChanged }: { profile: StylePr
           <span className="muted small">Plain background works best. Head to toe in the frame.</span>
         </button>
       )}
+      {!url && !file && (
+        <button type="button" className="btn camera-btn" onClick={() => cameraRef.current?.click()}>
+          <Icon name="camera" /> Take a photo
+        </button>
+      )}
 
       <input
         ref={fileRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
         className="sr-only"
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          if (f) setFile(f)
+          e.target.value = ''
+        }}
+      />
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden
         onChange={(e) => {
           const f = e.target.files?.[0]
           if (f) setFile(f)

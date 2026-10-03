@@ -33,6 +33,7 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
   const [dragOver, setDragOver] = useState(false)
   const editing = !!item
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [removeBg, setRemoveBg] = useState(true)
   const [busy, setBusy] = useState<{ msg: string; frac?: number } | null>(null)
@@ -189,6 +190,20 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
                 e.target.value = ''
               }}
             />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) setFile(f)
+                e.target.value = ''
+              }}
+            />
             {!file && (
               <button
                 type="button"
@@ -206,6 +221,11 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
                 <Icon name="upload" />
                 <strong>Choose or drop a photo</strong>
                 <span className="muted small">A photo of the piece, or a screenshot from a shopping site.</span>
+              </button>
+            )}
+            {!file && (
+              <button type="button" className="btn camera-btn" onClick={() => cameraRef.current?.click()}>
+                <Icon name="camera" /> Take a photo
               </button>
             )}
             <label className="switch">
@@ -241,9 +261,14 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
           </div>
         )}
         {file && !busy && (
-          <button type="button" className="btn small" onClick={() => fileRef.current?.click()}>
-            Use a different photo
-          </button>
+          <div className="row">
+            <button type="button" className="btn small" onClick={() => fileRef.current?.click()}>
+              <Icon name="image" /> Use a different photo
+            </button>
+            <button type="button" className="btn small camera-btn" onClick={() => cameraRef.current?.click()}>
+              <Icon name="camera" /> Retake
+            </button>
+          </div>
         )}
 
         {error && <p className="alert error" role="alert"><Icon name="alert" /> {error}</p>}
