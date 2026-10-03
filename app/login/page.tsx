@@ -38,7 +38,7 @@ export default function LoginPage() {
 
   return (
     <main className="auth" data-theme="studio">
-      <AuthArt title="Plan the look before you pack." text="Your wardrobe, every trip day by day, and styling help whenever you want it." />
+      <AuthArt accent="pack the" title="perfect look" text="Your wardrobe, every trip day by day, and styling help whenever you want it." />
       <div className="auth-form">
         <form onSubmit={submit} key={shakeKey} className={shakeKey ? 'shake' : undefined} noValidate>
           <div className="stack" style={{ ['--gap' as string]: '0.4rem' }}>

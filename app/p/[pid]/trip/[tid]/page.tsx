@@ -14,11 +14,13 @@ import OutfitSheet from '@/components/OutfitSheet'
 import TripSheet from '@/components/TripSheet'
 import SectionSheet from '@/components/SectionSheet'
 import AiStylistSheet from '@/components/AiStylistSheet'
+import ShoppingList from '@/components/ShoppingList'
+import TryOnSheet from '@/components/TryOnSheet'
 import { useFeedback } from '@/components/Feedback'
 import type { Outfit, Section, Trip, WardrobeItem } from '@/lib/types'
 
 export default function TripPage() {
-  const { profile } = useProfile()
+  const { profile, reload: reloadProfile } = useProfile()
   const { tid } = useParams<{ tid: string }>()
   const router = useRouter()
   const ai = useAiSettings()
@@ -33,6 +35,9 @@ export default function TripPage() {
   const [styling, setStyling] = useState<Section | null>(null)
   const [sectionSheet, setSectionSheet] = useState<{ section: Section | null } | null>(null)
   const [editTrip, setEditTrip] = useState(false)
+  const [view, setView] = useState<'plan' | 'shop'>('plan')
+  const [tryOn, setTryOn] = useState<Outfit | null>(null)
+  const [shopCount, setShopCount] = useState(0)
 
   const loadItems = useCallback(async () => {
     const { data } = await supabase().from('wardrobe_items').select('*').eq('profile_id', profile.id).order('created_at', { ascending: false })
@@ -106,6 +111,33 @@ export default function TripPage() {
       toast(friendlyError(error), 'error')
       load()
     } else if (next) toast(`“${o.title}” is the final pick`)
+  }
+
+  async function deleteOutfit(o: Outfit) {
+    const ok = await confirm({ title: `Delete “${o.title}”?`, message: 'Your wardrobe pieces are not deleted.', confirmText: 'Delete look', danger: true })
+    if (!ok) return
+    setOutfits((all) => all.filter((x) => x.id !== o.id))
+    const { error } = await supabase().from('outfits').delete().eq('id', o.id)
+    if (error) {
+      toast(friendlyError(error), 'error')
+      return load()
+    }
+    toast('Look deleted')
+  }
+
+  async function deleteTrip() {
+    const ok = await confirm({
+      title: `Delete ${trip!.name}?`,
+      message: 'All sections, looks and the shopping list for this trip are deleted. Your wardrobe stays as it is.',
+      confirmText: 'Delete trip',
+      danger: true,
+      typeToConfirm: trip!.name,
+    })
+    if (!ok) return
+    const { error } = await supabase().from('trips').delete().eq('id', trip!.id)
+    if (error) return toast(friendlyError(error), 'error')
+    toast('Trip deleted')
+    router.replace(`/p/${profile.id}`)
   }
 
   async function move(s: Section, dir: -1 | 1) {
@@ -192,7 +224,7 @@ export default function TripPage() {
         </div>
         <div className="looks stagger">
           {looks.map((o, i) => (
-            <LookCard key={o.id} outfit={o} index={i} urls={lookUrls(o)} onOpen={() => setEditing({ outfit: o, sectionId: s.id })} onTogglePick={() => togglePick(o)} />
+            <LookCard key={o.id} outfit={o} index={i} urls={lookUrls(o)} onOpen={() => setEditing({ outfit: o, sectionId: s.id })} onTogglePick={() => togglePick(o)} onDelete={() => deleteOutfit(o)} onTryOn={() => setTryOn(o)} />
           ))}
           <div className="add-tiles" style={{ ['--i' as string]: looks.length }}>
             <button className="add-tile" onClick={() => setEditing({ outfit: null, sectionId: s.id })}>
@@ -217,7 +249,13 @@ export default function TripPage() {
         <Link href={`/p/${profile.id}`} className="back"><Icon name="left" /> All trips</Link>
         <div className="spread">
           <h1>{trip.name}</h1>
-          <button className="btn small" onClick={() => setEditTrip(true)}><Icon name="edit" /> Edit trip</button>
+          <Menu
+            label="Trip options"
+            items={[
+              { label: 'Edit trip', icon: 'edit', onClick: () => setEditTrip(true) },
+              { label: 'Delete trip', icon: 'trash', onClick: deleteTrip, danger: true },
+            ]}
+          />
         </div>
         <p className="muted">
           {trip.destination ? `${trip.destination}, ` : ''}
@@ -226,6 +264,14 @@ export default function TripPage() {
         {trip.notes && <p className="small">{trip.notes}</p>}
       </div>
 
+      <div className="view-tabs" role="group" aria-label="Trip view">
+        <button aria-pressed={view === 'plan'} onClick={() => setView('plan')}><Icon name="suitcase" /> Outfits</button>
+        <button aria-pressed={view === 'shop'} onClick={() => setView('shop')}>
+          <Icon name="bag" /> Shopping list {shopCount > 0 && <span className="count">{shopCount}</span>}
+        </button>
+      </div>
+
+      <div hidden={view !== 'plan'}>
       <div className="day-strip" role="group" aria-label="Choose a day">
         {days.map((d, i) => {
           const n = outfits.filter((o) => sections.find((s) => s.id === o.section_id)?.day === d).length
@@ -274,6 +320,11 @@ export default function TripPage() {
           {outside.map((s, i, list) => renderSection(s, i, list))}
         </div>
       )}
+      </div>
+
+      <div hidden={view !== 'shop'}>
+        <ShoppingList tripId={trip.id} profileId={profile.id} onCountChange={setShopCount} onWardrobeChanged={loadItems} />
+      </div>
 
       <OutfitSheet
         open={!!editing}
@@ -297,6 +348,16 @@ export default function TripPage() {
         urls={urls}
         onItemsChanged={loadItems}
         onSaved={load}
+      />
+      <TryOnSheet
+        open={!!tryOn}
+        onClose={() => setTryOn(null)}
+        profile={profile}
+        outfit={tryOn ? outfits.find((x) => x.id === tryOn.id) ?? tryOn : null}
+        items={items}
+        urls={urls}
+        onSaved={load}
+        onProfileChanged={reloadProfile}
       />
       <SectionSheet
         open={!!sectionSheet}

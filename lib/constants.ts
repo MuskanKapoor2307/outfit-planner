@@ -68,3 +68,26 @@ export function friendlyError(e: unknown): string {
   if (msg.includes('Invalid login')) return 'Email or password is wrong.'
   return msg
 }
+
+/** Only allow normal web links (blocks javascript: and other tricks). */
+export function safeLink(raw: string): string | null {
+  const s = raw.trim()
+  if (!s) return null
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    return u.toString().slice(0, 1000)
+  } catch {
+    return null
+  }
+}
+
+export const linkHost = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return ''
+  }
+}
+
+export const rupees = (n: number) => `₹${n.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`

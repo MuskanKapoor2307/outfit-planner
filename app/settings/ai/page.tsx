@@ -105,6 +105,7 @@ function AiSettingsPage() {
 
   return (
     <div className="wrap">
+      <div className="sheet-page">
       <header className="topbar">
         <Link href="/" className="back"><Icon name="left" /> Back</Link>
       </header>
@@ -222,6 +223,7 @@ function AiSettingsPage() {
           </>
         )}
       </main>
+      </div>
     </div>
   )
 }

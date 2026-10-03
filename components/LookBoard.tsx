@@ -20,7 +20,7 @@ export default function LookBoard({ urls, emptyText = 'No pieces yet' }: { urls:
       {shown.length === 0 && <div className="empty">{emptyText}</div>}
       {shown.map((u, i) => {
         const [l, t, w, h, r] = layout[i]
-        const style: CSSProperties = { left: `${l}%`, top: `${t}%`, width: `${w}%`, height: `${h}%`, transform: `rotate(${r}deg)` }
+        const style = { left: `${l}%`, top: `${t}%`, width: `${w}%`, height: `${h}%`, ['--rot' as string]: `${r}deg`, ['--n' as string]: i } as CSSProperties
         return <img key={u + i} src={u} alt="" style={style} loading="lazy" />
       })}
     </div>

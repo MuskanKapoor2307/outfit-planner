@@ -6,10 +6,13 @@ It works on a laptop and can be added to a phone's home screen like an app.
 ## What's included
 
 - **Invite-only accounts.** You create one-time invite links and send them yourself.
-- **Profiles** inside each account (Me, Mom, Arjun…). Each profile has its own wardrobe, trips, and one of 12 themes:
-  - **For her:** Pink pop, Coquette, Vanilla latte, Riviera, Y2K chrome
-  - **For him:** Quiet luxury, Street, Tailored, Trail
-  - **For anyone:** Mono, Desert boho, Academia
+- **Profiles** inside each account (Me, Mom, Arjun…). Each has its own wardrobe, trips and one of 9 scrapbook themes:
+  - **For her:** Picnic, Stylebook, Vloset, Matcha, Happiness
+  - **For him:** Denim, Kraft, Varsity
+  - **For anyone:** Darkroom
+- **Free try-on board (no AI).** Add one full-length photo per profile in the **Profile** tab. Then on any look, choose **⋯ → Try it on me** and drag, resize and tilt the pieces over your photo like a paper doll.
+  - Save the layout, or save it as an image.
+  - The photo lives in a separate private storage area (`people`) and is never sent to any AI.
 - **Trips** (for example "Goa"), split by day. Each day has **sections you name yourself**: a time of day ("Morning"), an event ("Pool party") or a place ("Baga beach").
   Each section can hold **several looks**, and you can star one as the **final pick**.
 - **Wardrobe.** Add a photo. Background removal is **optional and free**, because it runs on your device and never uses AI credits.
@@ -18,7 +21,9 @@ It works on a laptop and can be added to a phone's home screen like an app.
   - Anything that uses AI has a colourful **"✦ AI"** badge.
   - Looks made by AI are labelled "AI idea".
   - You can switch AI off completely in **AI settings**.
-- **Account page.** Change your password, download all your data as a zip, or delete your account.
+- **Shopping list per trip.** Add items with a product link and price. Tick them off when bought, then **Move to wardrobe**. Things the AI says are worth buying can be added with one tap.
+- **Delete anything** from its **⋯** menu: trips (from the trip list or inside the trip), sections, single looks, wardrobe pieces (one at a time, or with **Select** for several).
+- **Account page.** Change your password, download all your data as a zip, or delete your account. Settings live in each profile's **Profile** tab.
 
 ---
 
@@ -30,7 +35,7 @@ Everything below uses free plans. No card is needed.
 
 1. Sign up at supabase.com and create a **new project**. Pick the **Mumbai** region if you're in India.
 2. Open **SQL Editor → New query**, paste the whole of `supabase/schema.sql`, and press **Run**.
-   Then open another new query, paste `supabase/002_sections_themes_ai.sql`, and press **Run**.
+   Then, one at a time in new queries, run `supabase/002_sections_themes_ai.sql`, `supabase/003_shopping_list.sql` and `supabase/004_scrapbook_tryon.sql`.
 3. Go to **Authentication → Sign In / Providers** and set the following:
    - Turn **off** "Allow new users to sign up". *This is what makes the app invite-only. Don't skip it.*
    - Turn **off** "Allow anonymous sign-ins" if it's on.
@@ -77,6 +82,14 @@ Open http://localhost:3000 and log in with the account from step 1.4.
 - **iPhone (Safari):** open the site, tap **Share**, then **Add to Home Screen**.
 
 ---
+
+## Updating to the scrapbook + try-on version
+
+Run `supabase/004_scrapbook_tryon.sql` once in the **SQL Editor**. It switches profiles to the new scrapbook themes and adds the private `people` storage area for try-on photos. Then restart the app, or push to GitHub so Vercel redeploys.
+
+## Updating to the shopping-list version
+
+Run `supabase/003_shopping_list.sql` once in the **SQL Editor**, then restart the app (or push to GitHub, and Vercel redeploys).
 
 ## Updating from the first version
 
@@ -181,6 +194,7 @@ Things to know:
 | Link previews using up invites | The invite code is only used when the person taps **Accept invite**. |
 | AI keys leaking from the server | There's nothing to leak there. Keys never reach the server or database; they stay on the person's device, optionally PIN-encrypted. |
 | A stolen AI key running up bills | Guidance in the app: use a separate key, prepaid credits and spending limits, and remove keys on shared devices. |
+| Try-on photos | Kept in a separate private bucket that only the owner can read. Adding one needs a consent tick, and it's deleted with the profile or account and included in the data download. It's never sent to AI. |
 | AI replies injecting content | Replies are parsed strictly, shown as plain text (never HTML), and only real wardrobe pieces are linked. |
 
 ---
@@ -213,4 +227,6 @@ lib/ai/              AI settings and key storage (device only), providers, promp
 proxy.ts             security policy (CSP) added to every page
 supabase/schema.sql  tables, limits, Row Level Security and storage rules
 supabase/002_….sql   sections, final pick, AI flag, new themes, extra categories
+supabase/003_….sql   shopping list per trip
+supabase/004_….sql   scrapbook themes, try-on photo and layouts
 ```

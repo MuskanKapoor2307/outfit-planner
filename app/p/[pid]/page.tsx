@@ -7,6 +7,9 @@ import { supabase } from '@/lib/supabase'
 import { daysUntil, prettyDate, toISODate, datesBetween } from '@/lib/constants'
 import TripSheet from '@/components/TripSheet'
 import Icon from '@/components/Icon'
+import Menu from '@/components/Menu'
+import { useFeedback } from '@/components/Feedback'
+import { friendlyError } from '@/lib/constants'
 import type { Trip } from '@/lib/types'
 
 interface Stats { sections: number; picked: number; looks: number }
@@ -17,6 +20,8 @@ export default function TripsPage() {
   const [trips, setTrips] = useState<Trip[] | null>(null)
   const [stats, setStats] = useState<Record<string, Stats>>({})
   const [creating, setCreating] = useState(false)
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
+  const { confirm, toast } = useFeedback()
 
   const load = useCallback(async () => {
     const sb = supabase()
@@ -47,6 +52,21 @@ export default function TripsPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  async function deleteTrip(t: Trip) {
+    const ok = await confirm({
+      title: `Delete ${t.name}?`,
+      message: 'All sections, looks and the shopping list for this trip are deleted. Your wardrobe stays as it is.',
+      confirmText: 'Delete trip',
+      danger: true,
+      typeToConfirm: t.name,
+    })
+    if (!ok) return
+    const { error } = await supabase().from('trips').delete().eq('id', t.id)
+    if (error) return toast(friendlyError(error), 'error')
+    toast('Trip deleted')
+    load()
+  }
 
   const today = toISODate(new Date())
   const stamp = (t: Trip) => {
@@ -81,7 +101,8 @@ export default function TripsPage() {
             const s = stats[t.id] || { sections: 0, picked: 0, looks: 0 }
             const st = stamp(t)
             return (
-              <Link key={t.id} href={`/p/${profile.id}/trip/${t.id}`} className="trip-card" style={{ ['--i' as string]: i }}>
+              <div key={t.id} className="trip-wrap" style={{ ['--i' as string]: i }}>
+              <Link href={`/p/${profile.id}/trip/${t.id}`} className="trip-card">
                 <span className="big" aria-hidden>{t.name.slice(0, 1)}</span>
                 <span className={`stamp ${st.now ? 'now' : ''}`}>{st.text}</span>
                 <h3>{t.name}</h3>
@@ -94,11 +115,22 @@ export default function TripsPage() {
                 </p>
                 <span className="meter" aria-hidden><i style={{ width: `${s.sections ? (s.picked / s.sections) * 100 : 0}%` }} /></span>
               </Link>
+              <div className="card-menu">
+                <Menu
+                  label={`Options for ${t.name}`}
+                  items={[
+                    { label: 'Edit trip', icon: 'edit', onClick: () => setEditingTrip(t) },
+                    { label: 'Delete trip', icon: 'trash', onClick: () => deleteTrip(t), danger: true },
+                  ]}
+                />
+              </div>
+              </div>
             )
           })}
         </div>
       )}
 
+      <TripSheet open={!!editingTrip} onClose={() => setEditingTrip(null)} profileId={profile.id} trip={editingTrip} onSaved={() => load()} onDeleted={() => load()} />
       <TripSheet open={creating} onClose={() => setCreating(false)} profileId={profile.id} onSaved={(id) => router.push(`/p/${profile.id}/trip/${id}`)} />
     </>
   )

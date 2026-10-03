@@ -7,11 +7,16 @@ import { friendlyError } from '@/lib/constants'
 import ProfileForm, { type ProfileDraft } from '@/components/ProfileForm'
 import { useFeedback } from '@/components/Feedback'
 import Icon from '@/components/Icon'
+import Link from 'next/link'
+import BodyPhotoCard from '@/components/BodyPhotoCard'
+import { useAuth } from '@/lib/auth'
+import { lockAllKeys } from '@/lib/ai/settings'
 
 export default function ProfileSettingsPage() {
   const { profile, reload } = useProfile()
   const router = useRouter()
   const { confirm, toast } = useFeedback()
+  const { isAdmin, session } = useAuth()
   const [draft, setDraft] = useState<ProfileDraft>({ name: profile.name, emoji: profile.emoji || '🌸', theme: profile.theme, style_for: profile.style_for || 'any' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -41,6 +46,7 @@ export default function ProfileSettingsPage() {
       const sb = supabase()
       const { data: items } = await sb.from('wardrobe_items').select('image_path').eq('profile_id', profile.id)
       const paths = (items || []).map((i) => i.image_path)
+      if (profile.body_photo_path) await sb.storage.from('people').remove([profile.body_photo_path])
       for (let i = 0; i < paths.length; i += 100) {
         const { error } = await sb.storage.from('wardrobe').remove(paths.slice(i, i + 100))
         if (error) throw error
@@ -66,6 +72,29 @@ export default function ProfileSettingsPage() {
       <div className="row">
         <button className="btn primary" onClick={save} disabled={busy}>Save profile</button>
       </div>
+      <BodyPhotoCard profile={profile} onChanged={reload} />
+
+      <div className="card stack">
+        <h3>Settings</h3>
+        <div className="settings-list">
+          <Link href="/settings/ai"><span className="ai-dot"><Icon name="sparkle" /></span><span><strong>AI settings</strong><small>Choose Gemini, Claude, OpenAI or your chat app, or turn AI off</small></span><Icon name="right" /></Link>
+          <Link href="/account"><span><Icon name="user" /></span><span><strong>Account</strong><small>{session?.user.email}. Password, download data, delete account</small></span><Icon name="right" /></Link>
+          {isAdmin && (
+            <Link href="/admin"><span><Icon name="mail" /></span><span><strong>Invites</strong><small>Invite people, reset links, remove accounts</small></span><Icon name="right" /></Link>
+          )}
+          <button
+            type="button"
+            onClick={async () => {
+              lockAllKeys()
+              await supabase().auth.signOut()
+              router.replace('/login')
+            }}
+          >
+            <span><Icon name="logout" /></span><span><strong>Log out</strong></span>
+          </button>
+        </div>
+      </div>
+
       <div className="card stack">
         <h3>Delete this profile</h3>
         <p className="muted small">Removes this profile’s wardrobe photos, trips and looks. Other profiles are not affected.</p>

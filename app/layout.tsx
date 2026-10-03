@@ -16,36 +16,22 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#2a1b3d',
+  themeColor: '#d6e3f8',
 }
 
 const FONTS =
   'https://fonts.googleapis.com/css2?' +
   [
-    'Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700',
-    'Instrument+Sans:wght@400;500;600;700',
-    'Fredoka:wght@500;600',
-    'Nunito:wght@400;600;700',
-    'Playfair+Display:ital,wght@0,500;1,500;1,600',
-    'Quicksand:wght@400;500;600;700',
-    'Manrope:wght@300;400;600;700',
-    'Cormorant+Garamond:wght@500;600',
-    'Jost:wght@400;500;600',
-    'Unbounded:wght@500;600',
-    'Sora:wght@400;600',
-    'Marcellus',
-    'Figtree:wght@400;600;700',
-    'Anton',
-    'Archivo:wght@400;600;700',
-    'Bodoni+Moda:opsz,wght@6..96,500;6..96,600',
-    'Libre+Franklin:wght@400;600',
-    'Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700',
-    'Work+Sans:wght@400;600',
-    'Familjen+Grotesk:wght@400;600;700',
-    'Young+Serif',
-    'Karla:wght@400;600;700',
-    'Libre+Baskerville:ital,wght@0,400;0,700;1,700',
-    'Crimson+Pro:wght@400;600;700',
+    'Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500;1,9..144,600',
+    'Instrument+Sans:wght@500;700',
+    'Imperial+Script',
+    'Caveat:wght@600;700',
+    'Courier+Prime:wght@400;700',
+    'Karla:wght@400;500;600;700',
+    'DM+Serif+Display',
+    'Archivo+Black',
+    'Archivo:wght@500;700;800',
+    'Special+Elite',
   ].map((f) => `family=${f}`).join('&') +
   '&display=swap'
 

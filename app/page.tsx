@@ -9,9 +9,11 @@ import { themeInfo } from '@/lib/themes'
 import Sheet from '@/components/Sheet'
 import Icon from '@/components/Icon'
 import ProfileForm, { type ProfileDraft } from '@/components/ProfileForm'
+import Menu from '@/components/Menu'
+import { useFeedback } from '@/components/Feedback'
 import type { StyleProfile } from '@/lib/types'
 
-const blank = (): ProfileDraft => ({ name: '', emoji: '🌸', theme: 'vanilla-latte', style_for: 'any' })
+const blank = (): ProfileDraft => ({ name: '', emoji: '🌸', theme: 'vloset', style_for: 'any' })
 
 function ProfilePicker() {
   const { isAdmin } = useAuth()
@@ -21,6 +23,7 @@ function ProfilePicker() {
   const [draft, setDraft] = useState<ProfileDraft>(blank)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const { confirm, toast } = useFeedback()
 
   const load = useCallback(async () => {
     const { data } = await supabase().from('style_profiles').select('*').order('created_at')
@@ -44,18 +47,37 @@ function ProfilePicker() {
     router.push(`/p/${data.id}`)
   }
 
+  async function deleteProfile(p: StyleProfile) {
+    const ok = await confirm({
+      title: `Delete ${p.name}?`,
+      message: 'This permanently deletes this profile’s wardrobe photos, try-on photo, trips, looks and shopping lists. Other profiles are not affected.',
+      confirmText: 'Delete profile',
+      danger: true,
+      typeToConfirm: p.name,
+    })
+    if (!ok) return
+    try {
+      const sb = supabase()
+      const { data: items } = await sb.from('wardrobe_items').select('image_path').eq('profile_id', p.id)
+      const paths = (items || []).map((i) => i.image_path)
+      for (let i = 0; i < paths.length; i += 100) {
+        const { error } = await sb.storage.from('wardrobe').remove(paths.slice(i, i + 100))
+        if (error) throw error
+      }
+      if (p.body_photo_path) await sb.storage.from('people').remove([p.body_photo_path])
+      const { error } = await sb.from('style_profiles').delete().eq('id', p.id)
+      if (error) throw error
+      toast(`${p.name} deleted`)
+      load()
+    } catch (e) {
+      toast(friendlyError(e), 'error')
+    }
+  }
+
   return (
     <div className="wrap">
-      <header className="topbar">
-        <span className="brand"><span className="mark"><Icon name="hanger" /></span>Outfit Planner</span>
-        <div className="row" style={{ gap: '0.2rem' }}>
-          {isAdmin && <Link href="/admin" className="btn ghost small"><Icon name="mail" /> Invites</Link>}
-          <Link href="/settings/ai" className="btn ghost small" aria-label="AI settings"><Icon name="sparkle" /> AI</Link>
-          <Link href="/account" className="btn ghost small" aria-label="Account"><Icon name="settings" /></Link>
-        </div>
-      </header>
 
-      <main className="page-enter">
+      <main className="page-enter" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 2.5rem)' }}>
         <div className="page-title">
           <h1>Who’s planning?</h1>
           <p className="muted">Each profile has its own wardrobe, trips and look.</p>
@@ -66,11 +88,24 @@ function ProfilePicker() {
         ) : (
           <div className="who-grid stagger">
             {profiles.map((p, i) => (
-              <Link key={p.id} href={`/p/${p.id}`} className="who-tile" data-theme={p.theme} style={{ ['--i' as string]: i }}>
+              <div key={p.id} className="who-wrap" style={{ ['--i' as string]: i }}>
+              <Link href={`/p/${p.id}`} className="who-tile" data-theme={p.theme}>
                 <span className="emoji" aria-hidden>{p.emoji || '🌸'}</span>
-                <strong>{p.name}</strong>
-                <span className="theme"><i aria-hidden />{themeInfo(p.theme)?.name}</span>
+                <span className="paper">
+                  <strong>{p.name}</strong>
+                  <span className="theme"><i aria-hidden />{themeInfo(p.theme)?.name}</span>
+                </span>
               </Link>
+              <div className="card-menu">
+                <Menu
+                  label={`Options for ${p.name}`}
+                  items={[
+                    { label: 'Edit name, icon and theme', icon: 'edit', onClick: () => router.push(`/p/${p.id}/style`) },
+                    { label: 'Delete profile', icon: 'trash', onClick: () => deleteProfile(p), danger: true },
+                  ]}
+                />
+              </div>
+              </div>
             ))}
             {profiles.length < 8 && (
               <button
@@ -82,12 +117,19 @@ function ProfilePicker() {
                   setAdding(true)
                 }}
               >
-                <span className="plus" aria-hidden><Icon name="plus" /></span>
-                <span>Add profile</span>
+                <span className="paper">
+                  <span className="plus" aria-hidden><Icon name="plus" /></span>
+                  <span>Add profile</span>
+                </span>
               </button>
             )}
           </div>
         )}
+
+        <p className="muted small" style={{ marginTop: '2.5rem', textAlign: 'center' }}>
+          Settings, AI and {isAdmin ? 'invites' : 'your account'} are in each profile’s <strong>Profile</strong> tab.{' '}
+          <Link href="/account">Account</Link>
+        </p>
       </main>
 
       <Sheet

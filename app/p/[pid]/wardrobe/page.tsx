@@ -7,6 +7,9 @@ import { CATEGORIES } from '@/lib/constants'
 import ItemGrid from '@/components/ItemGrid'
 import ItemSheet from '@/components/ItemSheet'
 import Icon from '@/components/Icon'
+import { useFeedback } from '@/components/Feedback'
+import { forgetSignedUrl } from '@/lib/signedUrls'
+import { friendlyError } from '@/lib/constants'
 import type { WardrobeItem } from '@/lib/types'
 
 export default function WardrobePage() {
@@ -16,6 +19,10 @@ export default function WardrobePage() {
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<WardrobeItem | null>(null)
+  const [selecting, setSelecting] = useState(false)
+  const [selected, setSelected] = useState<string[]>([])
+  const [deleting, setDeleting] = useState(false)
+  const { confirm, toast } = useFeedback()
 
   const load = useCallback(async () => {
     const { data } = await supabase().from('wardrobe_items').select('*').eq('profile_id', profile.id).order('created_at', { ascending: false })
@@ -25,6 +32,37 @@ export default function WardrobePage() {
   useEffect(() => {
     load()
   }, [load])
+
+  async function deleteSelected() {
+    const chosen = (items || []).filter((i) => selected.includes(i.id))
+    if (!chosen.length) return
+    const sb = supabase()
+    const { count } = await sb.from('outfit_items').select('item_id', { count: 'exact', head: true }).in('item_id', chosen.map((c) => c.id))
+    const ok = await confirm({
+      title: `Delete ${chosen.length} piece${chosen.length > 1 ? 's' : ''}?`,
+      message: count
+        ? `Some of them are used in planned looks (${count} place${count > 1 ? 's' : ''}). They’ll be removed from those looks. The photos are deleted for good.`
+        : 'The photos are deleted for good. This can’t be undone.',
+      confirmText: 'Delete',
+      danger: true,
+    })
+    if (!ok) return
+    setDeleting(true)
+    try {
+      const { error } = await sb.from('wardrobe_items').delete().in('id', chosen.map((c) => c.id))
+      if (error) throw error
+      await sb.storage.from('wardrobe').remove(chosen.map((c) => c.image_path))
+      chosen.forEach((c) => forgetSignedUrl(c.image_path))
+      toast(`${chosen.length} deleted`)
+      setSelected([])
+      setSelecting(false)
+      load()
+    } catch (e) {
+      toast(friendlyError(e), 'error')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const urls = useSignedUrls((items || []).map((i) => i.image_path))
   const used = new Set((items || []).map((i) => i.category))
@@ -39,7 +77,14 @@ export default function WardrobePage() {
     <>
       <div className="spread page-title">
         <h1>Wardrobe</h1>
-        <button className="btn primary" onClick={() => setAdding(true)}><Icon name="plus" /> Add piece</button>
+        <div className="row">
+          {!!items?.length && (
+            <button className="btn" onClick={() => { setSelecting((v) => !v); setSelected([]) }}>
+              {selecting ? 'Cancel' : <><Icon name="select" /> Select</>}
+            </button>
+          )}
+          {!selecting && <button className="btn primary" onClick={() => setAdding(true)}><Icon name="plus" /> Add piece</button>}
+        </div>
       </div>
 
       {items === null && <div className="items">{[0, 1, 2, 3, 4, 5].map((i) => <div key={i} className="skel" style={{ aspectRatio: '1' }} />)}</div>}
@@ -64,11 +109,30 @@ export default function WardrobePage() {
               </button>
             ))}
           </div>
-          {visible.length ? <ItemGrid items={visible} urls={urls} onPick={setEditing} /> : <p className="muted">Nothing matches that search.</p>}
+          {visible.length ? <ItemGrid
+              items={visible}
+              urls={urls}
+              onPick={(it) => (selecting ? setSelected((sel) => (sel.includes(it.id) ? sel.filter((x) => x !== it.id) : [...sel, it.id])) : setEditing(it))}
+              selected={selecting ? selected : undefined}
+            /> : <p className="muted">Nothing matches that search.</p>}
         </div>
       )}
 
-      {!!items?.length && (
+ {selecting && (
+        <div className="select-bar">
+          <span><strong>{selected.length}</strong> selected</span>
+          <div className="row">
+            <button className="btn small" onClick={() => setSelected(selected.length === visible.length ? [] : visible.map((v) => v.id))}>
+              {selected.length === visible.length ? 'Clear' : 'Select all'}
+            </button>
+            <button className="btn small danger" disabled={!selected.length || deleting} onClick={deleteSelected}>
+              {deleting ? <><span className="spinner" aria-hidden /> Deleting</> : <><Icon name="trash" /> Delete</>}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!!items?.length && !selecting && (
         <button className="fab" onClick={() => setAdding(true)} aria-label="Add piece"><Icon name="plus" /></button>
       )}
 

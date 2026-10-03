@@ -17,19 +17,16 @@ export const THEME_GROUPS: { id: ThemeGroup; label: string }[] = [
 ]
 
 export const THEMES: ThemeInfo[] = [
-  { id: 'pink-pop', name: 'Pink pop', group: 'her', blurb: 'Hot pink, cherry red, sticker edges', bar: '#ffe4f0' },
-  { id: 'coquette', name: 'Coquette', group: 'her', blurb: 'Blush, ribbon red, lace scallops', bar: '#fbecec' },
-  { id: 'vanilla-latte', name: 'Vanilla latte', group: 'her', blurb: 'Clean-girl creams and soft caramel', bar: '#f7f2ec' },
-  { id: 'riviera', name: 'Riviera', group: 'her', blurb: 'Old-money navy, linen and gold', bar: '#f4eee2' },
-  { id: 'y2k', name: 'Y2K chrome', group: 'her', blurb: 'Lilac shimmer and bubble type', bar: '#ece8ff' },
-  { id: 'quiet-luxury', name: 'Quiet luxury', group: 'him', blurb: 'Stone, camel and charcoal', bar: '#e9e5de' },
-  { id: 'street', name: 'Street', group: 'him', blurb: 'Concrete grey, tape orange, bold type', bar: '#d8d8d4' },
-  { id: 'tailored', name: 'Tailored', group: 'him', blurb: 'Midnight navy, pinstripe, brass', bar: '#141d33' },
-  { id: 'trail', name: 'Trail', group: 'him', blurb: 'Gorpcore olive, khaki and blaze', bar: '#e5e0cc' },
-  { id: 'mono', name: 'Mono', group: 'anyone', blurb: 'Black, white and one yellow marker', bar: '#fafafa' },
-  { id: 'desert-boho', name: 'Desert boho', group: 'anyone', blurb: 'Rust, mustard and arched frames', bar: '#f4e6d2' },
-  { id: 'academia', name: 'Academia', group: 'anyone', blurb: 'Candlelit browns and oxblood, dark', bar: '#1c1814' },
+  { id: 'picnic', name: 'Picnic', group: 'her', blurb: 'Tomato red, gingham and butter script', bar: '#b83b3b' },
+  { id: 'stylebook', name: 'Stylebook', group: 'her', blurb: 'Blue gingham binder and typewriter notes', bar: '#dfe8fb' },
+  { id: 'vloset', name: 'Vloset', group: 'her', blurb: 'Pastel stripes, coffee brown and egg yolk', bar: '#d6e3f8' },
+  { id: 'matcha', name: 'Matcha', group: 'her', blurb: 'Lime polka dots and scalloped stamps', bar: '#c3cc5a' },
+  { id: 'happiness', name: 'Happiness', group: 'her', blurb: 'Red stripes, torn paper and gold stars', bar: '#b8202f' },
+  { id: 'denim', name: 'Denim', group: 'him', blurb: 'Indigo denim, kraft labels, orange stitching', bar: '#2c4470' },
+  { id: 'kraft', name: 'Kraft', group: 'him', blurb: 'Brown paper, ink stamps, typewriter', bar: '#b8956a' },
+  { id: 'varsity', name: 'Varsity', group: 'him', blurb: 'Navy, cream and college stripes', bar: '#1d2b4f' },
+  { id: 'darkroom', name: 'Darkroom', group: 'anyone', blurb: 'Black paper and safelight red, dark', bar: '#121212' },
 ]
 
 export const themeInfo = (id: string) => THEMES.find((t) => t.id === id)
-export const STUDIO_BAR = '#2a1b3d'
+export const STUDIO_BAR = '#d6e3f8'

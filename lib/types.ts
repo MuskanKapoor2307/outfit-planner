@@ -1,7 +1,7 @@
 export type ThemeId =
-  | 'pink-pop' | 'coquette' | 'vanilla-latte' | 'riviera' | 'y2k'
-  | 'quiet-luxury' | 'street' | 'tailored' | 'trail'
-  | 'mono' | 'desert-boho' | 'academia'
+  | 'picnic' | 'stylebook' | 'vloset' | 'matcha' | 'happiness'
+  | 'denim' | 'kraft' | 'varsity'
+  | 'darkroom'
 export type StyleFor = 'women' | 'men' | 'any'
 export type SectionKind = 'time' | 'event' | 'place'
 
@@ -12,6 +12,8 @@ export interface StyleProfile {
   theme: ThemeId
   emoji: string | null
   style_for: StyleFor
+  body_photo_path: string | null
+  body_photo_consent_at: string | null
   created_at: string
 }
 
@@ -65,6 +67,32 @@ export interface Outfit {
   notes: string | null
   is_pick: boolean
   ai_generated: boolean
+  tryon: TryOnPlacement[] | null
   created_at: string
   outfit_items: OutfitItemLink[]
+}
+
+/** Position of one piece on the try-on board, in % of the board. */
+export interface TryOnPlacement {
+  item_id: string
+  x: number // centre, 0–100
+  y: number // centre, 0–100
+  w: number // width, 5–100
+  r: number // rotation in degrees
+  z: number
+}
+
+export type ShoppingStatus = 'to_buy' | 'bought' | 'in_wardrobe'
+
+export interface ShoppingItem {
+  id: string
+  trip_id: string
+  name: string
+  url: string | null
+  price: number | null
+  category: string | null
+  notes: string | null
+  status: ShoppingStatus
+  wardrobe_item_id: string | null
+  created_at: string
 }

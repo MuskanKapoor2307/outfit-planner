@@ -12,6 +12,7 @@ const PATHS: Record<string, string> = {
   up: 'M6 15l6-6 6 6',
   down: 'M6 9l6 6 6-6',
   left: 'M15 6l-6 6 6 6',
+  right: 'M9 6l6 6-6 6',
   trash: 'M4 7h16M10 11v6m4-6v6M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12M9 7V4h6v3',
   edit: 'M4 20h4L19 9l-4-4L4 16v4Zm9-13 4 4',
   copy: 'M9 9h10v11H9zM5 15V4h10',
@@ -31,6 +32,8 @@ const PATHS: Record<string, string> = {
   shield: 'M12 3l7 3v5c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-3Z',
   mail: 'M4 6h16v12H4zM4 7l8 6 8-6',
   share: 'M12 15V3m0 0-4 4m4-4 4 4M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1',
+  bag: 'M6 8h12l1 12H5L6 8Zm3 0V6a3 3 0 0 1 6 0v2',
+  select: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zm11 3 2 2 4-4',
   wand: 'M5 19 15 9m2-6 .7 1.8L19.5 5.5l-1.8.7L17 8l-.7-1.8-1.8-.7 1.8-.7L17 3ZM7 4l.5 1.3L8.8 6 7.5 6.5 7 8l-.5-1.5L5.2 6l1.3-.7L7 4Z',
 }
 

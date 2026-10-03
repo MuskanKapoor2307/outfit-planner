@@ -54,6 +54,7 @@ function ProfileShell({ children }: { children: ReactNode }) {
     <ProfileCtx.Provider value={{ profile, reload }}>
       <ThemeScope theme={profile.theme} />
       <div className="wrap">
+        <div className="sheet-page">
         <header className="topbar">
           <Link href={base} className="who">
             <span className="avatar" aria-hidden>{profile.emoji || '🌸'}</span>
@@ -61,6 +62,8 @@ function ProfileShell({ children }: { children: ReactNode }) {
           </Link>
           <Link href="/" className="btn ghost small">Switch profile</Link>
         </header>
+        <main key={pathname} className="page-enter">{children}</main>
+        </div>
         <nav className="tabs" aria-label="Sections">
           {tabs.map((t) => (
             <Link key={t.href} href={t.href} aria-current={t.active ? 'page' : undefined}>
@@ -69,7 +72,6 @@ function ProfileShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <main key={pathname} className="page-enter">{children}</main>
       </div>
     </ProfileCtx.Provider>
   )

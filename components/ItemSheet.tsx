@@ -18,13 +18,16 @@ interface Props {
   /** pass an item to edit it; leave empty to add a new one */
   item?: WardrobeItem | null
   imageUrl?: string
+  /** pre-fill name/type when adding (e.g. moving a bought item from the shopping list) */
+  preset?: { name: string; category?: string | null } | null
+  title?: string
   onSaved: (newItemId?: string) => void
 }
 
 const parseTags = (s: string) =>
   [...new Set(s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 12).map((t) => t.slice(0, 24))
 
-export default function ItemSheet({ open, onClose, profileId, item, imageUrl, onSaved }: Props) {
+export default function ItemSheet({ open, onClose, profileId, item, imageUrl, preset, title, onSaved }: Props) {
   const { session } = useAuth()
   const { confirm, toast } = useFeedback()
   const [dragOver, setDragOver] = useState(false)
@@ -50,11 +53,11 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, on
     setBusy(null)
     setError('')
     setSaving(false)
-    setName(item?.name ?? '')
-    setCategory(item?.category ?? 'dress')
+    setName(item?.name ?? preset?.name ?? '')
+    setCategory(item?.category ?? preset?.category ?? 'dress')
     setColour(item?.color ?? '')
     setTags(item?.tags.join(', ') ?? '')
-  }, [open, item])
+  }, [open, item, preset])
 
   // process the photo whenever the file or the toggle changes
   useEffect(() => {
@@ -157,7 +160,7 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, on
     <Sheet
       open={open}
       onClose={onClose}
-      title={editing ? 'Edit piece' : 'Add to wardrobe'}
+      title={title ?? (editing ? 'Edit piece' : 'Add to wardrobe')}
       footer={
         <>
           {editing && (

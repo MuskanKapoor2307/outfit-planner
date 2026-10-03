@@ -94,6 +94,7 @@ function Admin() {
 
   return (
     <div className="wrap">
+      <div className="sheet-page">
       <header className="topbar">
         <Link href="/" className="back"><Icon name="left" /> Back</Link>
       </header>
@@ -161,6 +162,7 @@ function Admin() {
             ))}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )

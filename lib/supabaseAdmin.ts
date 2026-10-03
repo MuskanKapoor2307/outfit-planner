@@ -46,12 +46,14 @@ export async function requireAdmin(req: Request): Promise<User> {
 /** Removes every photo in a user's folder, then the user (their rows are deleted automatically). */
 export async function deleteUserCompletely(userId: string) {
   const sb = supabaseAdmin()
-  for (let i = 0; i < 50; i++) {
-    const { data: files, error } = await sb.storage.from('wardrobe').list(userId, { limit: 100 })
-    if (error) throw error
-    if (!files || files.length === 0) break
-    const { error: rmErr } = await sb.storage.from('wardrobe').remove(files.map((f) => `${userId}/${f.name}`))
-    if (rmErr) throw rmErr
+  for (const bucket of ['wardrobe', 'people']) {
+    for (let i = 0; i < 50; i++) {
+      const { data: files, error } = await sb.storage.from(bucket).list(userId, { limit: 100 })
+      if (error) throw error
+      if (!files || files.length === 0) break
+      const { error: rmErr } = await sb.storage.from(bucket).remove(files.map((f) => `${userId}/${f.name}`))
+      if (rmErr) throw rmErr
+    }
   }
   const { error } = await sb.auth.admin.deleteUser(userId)
   if (error) throw error

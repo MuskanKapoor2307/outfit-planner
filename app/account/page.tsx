@@ -64,6 +64,14 @@ function Account() {
         done++
         setMsg(`Adding photos… ${done} of ${paths.length}`)
       }
+      const bodyPaths = (p.data || []).map((x: { body_photo_path: string | null }) => x.body_photo_path).filter(Boolean) as string[]
+      if (bodyPaths.length) {
+        const bu = await getSignedUrls(bodyPaths, 'people')
+        for (const bp of bodyPaths) {
+          const res = await fetch(bu[bp])
+          if (res.ok) zip.file(`try-on-photos/${bp.split('/').pop()}`, await res.blob())
+        }
+      }
       const blob = await zip.generateAsync({ type: 'blob' })
       const a = document.createElement('a')
       a.href = URL.createObjectURL(blob)
@@ -110,6 +118,7 @@ function Account() {
 
   return (
     <div className="wrap">
+      <div className="sheet-page">
       <header className="topbar">
         <Link href="/" className="back"><Icon name="left" /> Back</Link>
         <button className="btn small" onClick={logout}><Icon name="logout" /> Log out</button>
@@ -159,6 +168,7 @@ function Account() {
         </div>
       </div>
       </main>
+      </div>
     </div>
   )
 }

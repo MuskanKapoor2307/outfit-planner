@@ -92,7 +92,7 @@ function Welcome() {
 export default function WelcomePage() {
   return (
     <main className="auth" data-theme="studio">
-      <AuthArt title="Your wardrobe, planned." text="Set up your account in a few seconds." />
+      <AuthArt accent="welcome to your" title="style book" text="Set up your account in a few seconds." />
       <Suspense fallback={<div className="auth-form"><p className="muted">Loading…</p></div>}>
         <Welcome />
       </Suspense>

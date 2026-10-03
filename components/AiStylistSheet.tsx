@@ -55,6 +55,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
   const [manual, setManual] = useState<{ prompt: string; files: File[]; codes: ReturnType<typeof buildPrompt>['pieceCodes'] } | null>(null)
   const [pasted, setPasted] = useState('')
   const [saving, setSaving] = useState(false)
+  const [addedToList, setAddedToList] = useState<string[]>([])
 
   useEffect(() => {
     if (!open) return
@@ -69,6 +70,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
     setError(null)
     setManual(null)
     setPasted('')
+    setAddedToList([])
   }, [open, section?.id])
 
   useEffect(() => {
@@ -204,6 +206,14 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
       setTimeout(() => URL.revokeObjectURL(a.href), 5000)
     }
     toast(`${manual.files.length} photo${manual.files.length > 1 ? 's' : ''} downloaded`)
+  }
+
+  async function addToList(text: string) {
+    const name = text.length > 80 ? text.slice(0, 77) + '…' : text
+    const { error } = await supabase().from('shopping_items').insert({ trip_id: trip.id, name, notes: text.length > 80 ? text.slice(0, 500) : null })
+    if (error) return toast(friendlyError(error), 'error')
+    setAddedToList((l) => [...l, text])
+    toast('Added to the trip’s shopping list')
   }
 
   async function saveLook() {
@@ -362,7 +372,19 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
               <div className="palette" aria-label="Colour palette">{result.colour_palette.map((c) => <span key={c}>{c}</span>)}</div>
             )}
             {result.to_buy.length > 0 && (
-              <div className="alert"><Icon name="alert" /> <span><strong>Worth buying:</strong> {result.to_buy.join('; ')}</span></div>
+              <div className="stack" style={{ ['--gap' as string]: '0.5rem' }}>
+                <strong className="small">Worth buying</strong>
+                <div className="shop-list">
+                  {result.to_buy.map((b) => (
+                    <div key={b} className="shop-row">
+                      <div className="shop-main"><span>{b}</span></div>
+                      <button className="btn small" disabled={addedToList.includes(b)} onClick={() => addToList(b)}>
+                        {addedToList.includes(b) ? <><Icon name="check" /> On the list</> : <><Icon name="plus" /> Shopping list</>}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
             {result.pinterest_searches.length > 0 && (
               <div className="stack" style={{ ['--gap' as string]: '0.5rem' }}>
