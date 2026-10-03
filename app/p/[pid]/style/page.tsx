@@ -1,20 +1,17 @@
 'use client'
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useProfile } from '@/lib/profile'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/constants'
 import ProfileForm, { type ProfileDraft } from '@/components/ProfileForm'
 import { useFeedback } from '@/components/Feedback'
 import Icon from '@/components/Icon'
-import Link from 'next/link'
 import BodyPhotoCard from '@/components/BodyPhotoCard'
 import { useAuth } from '@/lib/auth'
 import { lockAllKeys } from '@/lib/ai/settings'
 
 export default function ProfileSettingsPage() {
   const { profile, reload } = useProfile()
-  const router = useRouter()
   const { confirm, toast } = useFeedback()
   const { isAdmin, session } = useAuth()
   const [draft, setDraft] = useState<ProfileDraft>({ name: profile.name, emoji: profile.emoji || '🌸', theme: profile.theme, style_for: profile.style_for || 'any' })
@@ -54,7 +51,7 @@ export default function ProfileSettingsPage() {
       const { error } = await sb.from('style_profiles').delete().eq('id', profile.id)
       if (error) throw error
       toast('Profile deleted')
-      router.replace('/')
+      window.location.replace('/')
     } catch (e) {
       setError(friendlyError(e))
       setBusy(false)
@@ -77,17 +74,17 @@ export default function ProfileSettingsPage() {
       <div className="card stack">
         <h3>Settings</h3>
         <div className="settings-list">
-          <Link href="/settings/ai"><span className="ai-dot"><Icon name="sparkle" /></span><span><strong>AI settings</strong><small>Choose Gemini, Claude, OpenAI or your chat app, or turn AI off</small></span><Icon name="right" /></Link>
-          <Link href="/account"><span><Icon name="user" /></span><span><strong>Account</strong><small>{session?.user.email}. Password, download data, delete account</small></span><Icon name="right" /></Link>
+          <a href="/settings/ai"><span className="ai-dot"><Icon name="sparkle" /></span><span><strong>AI settings</strong><small>Choose Gemini, Claude, OpenAI or your chat app, or turn AI off</small></span><Icon name="right" /></a>
+          <a href="/account"><span><Icon name="user" /></span><span><strong>Account</strong><small>{session?.user.email}. Password, download data, delete account</small></span><Icon name="right" /></a>
           {isAdmin && (
-            <Link href="/admin"><span><Icon name="mail" /></span><span><strong>Invites</strong><small>Invite people, reset links, remove accounts</small></span><Icon name="right" /></Link>
+            <a href="/admin"><span><Icon name="mail" /></span><span><strong>Invites</strong><small>Invite people, reset links, remove accounts</small></span><Icon name="right" /></a>
           )}
           <button
             type="button"
             onClick={async () => {
               lockAllKeys()
               await supabase().auth.signOut()
-              router.replace('/login')
+              window.location.replace('/login')
             }}
           >
             <span><Icon name="logout" /></span><span><strong>Log out</strong></span>

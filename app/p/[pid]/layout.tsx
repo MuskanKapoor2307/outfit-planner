@@ -30,7 +30,7 @@ function ProfileShell({ children }: { children: ReactNode }) {
       <div className="page-center">
         <div className="empty-state">
           <h2>Profile not found</h2>
-          <Link className="btn primary" href="/">Back to profiles</Link>
+          <a className="btn primary" href="/">Back to profiles</a>
         </div>
       </div>
     )
@@ -60,7 +60,7 @@ function ProfileShell({ children }: { children: ReactNode }) {
             <span className="avatar" aria-hidden>{profile.emoji || '🌸'}</span>
             <strong>{profile.name}</strong>
           </Link>
-          <Link href="/" className="btn ghost small">Switch profile</Link>
+          <a href="/" className="btn ghost small">Switch profile</a>
         </header>
         <main key={pathname} className="page-enter">{children}</main>
         </div>

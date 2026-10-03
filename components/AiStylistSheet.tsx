@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import Sheet from './Sheet'
 import Icon, { AiBadge } from './Icon'
 import ItemGrid from './ItemGrid'
@@ -288,7 +287,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
         {aiOff ? (
           <div className="empty-state">
             <p>AI features are turned off on this device.</p>
-            <Link className="btn" href="/settings/ai">Open AI settings</Link>
+            <a className="btn" href="/settings/ai">Open AI settings</a>
           </div>
         ) : stage === 'thinking' ? (
           <div className="ai-thinking" aria-live="polite">
@@ -483,7 +482,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
                 </select>
               </div>
               {status === 'none' ? (
-                <span className="ai-note"><Icon name="key" /> No key set up for {providerInfo.name} on this device. <Link href="/settings/ai">Set it up</Link></span>
+                <span className="ai-note"><Icon name="key" /> No key set up for {providerInfo.name} on this device. <a href="/settings/ai">Set it up</a></span>
               ) : (
                 <span className="ai-note">
                   {provider === 'manual' ? 'You’ll copy a prompt into your own app. Free here.' : `One request per click.${status === 'locked' ? ' Your key is PIN-locked; you’ll be asked for the PIN.' : ''}`}
