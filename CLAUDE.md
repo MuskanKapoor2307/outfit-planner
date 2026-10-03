@@ -144,7 +144,7 @@ Row limits are enforced by the `enforce_row_limit` trigger.
   - Parse them through `parseResult` (known fields, length caps, wardrobe codes must exist).
   - Render as plain text only. **Never use `dangerouslySetInnerHTML`** anywhere.
 - **External links:** validate with `safeLink` (http/https only) and open with `target="_blank" rel="noopener noreferrer"`.
-- **CSP:** `proxy.ts` allows connections only to Supabase, `staticimgly.com` (bg-removal model), the three AI providers, and Google Fonts. If a feature needs a new domain, add it there deliberately and say why. Don't loosen `script-src`.
+- **CSP:** `proxy.ts` allows connections only to Supabase, `staticimgly.com` (bg-removal model), the three AI providers, and Google Fonts. If a feature needs a new domain, add it there deliberately and say why. Don't loosen `script-src`. One deliberate exception: `'unsafe-eval'` is allowed **only on `/p/*` pages**, because the background remover's `ndarray` dependency uses `new Function()`. Keep it scoped that way.
 - **Photos:**
   - Always go through `prepareImage`, which re-encodes them and strips location data.
   - Try-on photos stay in the `people` bucket, need a consent tick, and are **never sent to AI**.

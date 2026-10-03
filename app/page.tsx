@@ -1,7 +1,6 @@
 'use client'
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { RequireAuth, useAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { friendlyError } from '@/lib/constants'
@@ -17,7 +16,6 @@ const blank = (): ProfileDraft => ({ name: '', emoji: '🌸', theme: 'vloset', s
 
 function ProfilePicker() {
   const { isAdmin } = useAuth()
-  const router = useRouter()
   const [profiles, setProfiles] = useState<StyleProfile[] | null>(null)
   const [adding, setAdding] = useState(false)
   const [draft, setDraft] = useState<ProfileDraft>(blank)
@@ -44,7 +42,7 @@ function ProfilePicker() {
       .single()
     setBusy(false)
     if (error) return setError(friendlyError(error))
-    router.push(`/p/${data.id}`)
+    window.location.assign(`/p/${data.id}`)
   }
 
   async function deleteProfile(p: StyleProfile) {
@@ -89,18 +87,19 @@ function ProfilePicker() {
           <div className="who-grid stagger">
             {profiles.map((p, i) => (
               <div key={p.id} className="who-wrap" style={{ ['--i' as string]: i }}>
-              <Link href={`/p/${p.id}`} className="who-tile" data-theme={p.theme}>
+              {/* full page load (not client navigation) so profile pages get their own security policy */}
+              <a href={`/p/${p.id}`} className="who-tile" data-theme={p.theme}>
                 <span className="emoji" aria-hidden>{p.emoji || '🌸'}</span>
                 <span className="paper">
                   <strong>{p.name}</strong>
                   <span className="theme"><i aria-hidden />{themeInfo(p.theme)?.name}</span>
                 </span>
-              </Link>
+              </a>
               <div className="card-menu">
                 <Menu
                   label={`Options for ${p.name}`}
                   items={[
-                    { label: 'Edit name, icon and theme', icon: 'edit', onClick: () => router.push(`/p/${p.id}/style`) },
+                    { label: 'Edit name, icon and theme', icon: 'edit', onClick: () => window.location.assign(`/p/${p.id}/style`) },
                     { label: 'Delete profile', icon: 'trash', onClick: () => deleteProfile(p), danger: true },
                   ]}
                 />

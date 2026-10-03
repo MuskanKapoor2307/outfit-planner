@@ -12,6 +12,10 @@ import { NextRequest, NextResponse } from 'next/server'
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
   const isDev = process.env.NODE_ENV === 'development'
+  // The on-device background remover (via the 'ndarray' library) builds code with
+  // new Function(), which needs 'unsafe-eval'. Allow it ONLY on profile pages, where
+  // photos are added. Login, invites, account and AI-key pages stay strict.
+  const needsEval = isDev || request.nextUrl.pathname.startsWith('/p/')
 
   let supabaseHost = ''
   try {
@@ -22,7 +26,7 @@ export function proxy(request: NextRequest) {
 
   const csp = `
     default-src 'self';
-    script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval' blob:${isDev ? " 'unsafe-eval'" : ''};
+    script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval' blob:${needsEval ? " 'unsafe-eval'" : ''};
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
     font-src 'self' https://fonts.gstatic.com;
     img-src 'self' blob: data: ${sbHttp};
