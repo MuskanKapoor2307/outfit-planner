@@ -8,6 +8,7 @@ import { CATEGORIES } from '@/lib/constants'
 import ItemGrid from '@/components/ItemGrid'
 import ItemSheet from '@/components/ItemSheet'
 import BulkEditSheet from '@/components/BulkEditSheet'
+import BulkUploadSheet from '@/components/BulkUploadSheet'
 import Icon from '@/components/Icon'
 import { useFeedback } from '@/components/Feedback'
 import { forgetSignedUrl } from '@/lib/signedUrls'
@@ -26,6 +27,7 @@ export default function WardrobePage() {
   const [selected, setSelected] = useState<string[]>([])
   const [deleting, setDeleting] = useState(false)
   const [bulkEditing, setBulkEditing] = useState(false)
+  const [bulkAdding, setBulkAdding] = useState(false)
   const { confirm, toast } = useFeedback()
 
   const load = useCallback(async () => {
@@ -89,6 +91,7 @@ export default function WardrobePage() {
               {selecting ? 'Cancel' : <><Icon name="select" /> Select</>}
             </button>
           )}
+          {!selecting && <button className="btn" onClick={() => setBulkAdding(true)}><Icon name="image" /> Add many</button>}
           {!selecting && <button className="btn primary" onClick={() => setAdding(true)}><Icon name="plus" /> Add piece</button>}
         </div>
       </div>
@@ -100,7 +103,10 @@ export default function WardrobePage() {
           <span className="art" aria-hidden>👗</span>
           <h2>Start your digital wardrobe</h2>
           <p className="muted">Add a photo of a dress, sneakers or a watch. Removing the background is optional, free, and happens on your device.</p>
-          <button className="btn primary" onClick={() => setAdding(true)}>Add your first piece</button>
+          <div className="row" style={{ justifyContent: 'center' }}>
+            <button className="btn primary" onClick={() => setAdding(true)}>Add your first piece</button>
+            <button className="btn" onClick={() => setBulkAdding(true)}><Icon name="image" /> Add many at once</button>
+          </div>
         </div>
       )}
 
@@ -145,6 +151,7 @@ export default function WardrobePage() {
         <button className="fab" onClick={() => setAdding(true)} aria-label="Add piece"><Icon name="plus" /></button>
       )}
 
+      <BulkUploadSheet open={bulkAdding} onClose={() => setBulkAdding(false)} profileId={profile.id} onSaved={() => load()} />
       <BulkEditSheet
         open={bulkEditing}
         onClose={() => setBulkEditing(false)}
