@@ -5,6 +5,7 @@ import { CATEGORIES, friendlyError } from '@/lib/constants'
 import { prepareImage, preloadBackgroundRemover, type PreparedImage } from '@/lib/image'
 import { supabase } from '@/lib/supabase'
 import { uploadPhoto } from '@/lib/upload'
+import { runInBackground } from '@/lib/backgroundJobs'
 import { useAuth } from '@/lib/auth'
 import { forgetSignedUrl } from '@/lib/signedUrls'
 import { bgRemovalPreference, setBgRemovalPreference } from '@/lib/ai/settings'
@@ -66,15 +67,22 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
     if (open && !item && removeBg) preloadBackgroundRemover()
   }, [open, item, removeBg])
 
-  // process the photo whenever the file or the toggle changes
+  // process the photo whenever the file or the toggle changes. The work itself is kept in a ref,
+  // so tapping Add can close the sheet and let it finish in the background.
+  const prepRef = useRef<Promise<PreparedImage> | null>(null)
   useEffect(() => {
-    if (!file) return
+    if (!file) {
+      prepRef.current = null
+      return
+    }
     let cancelled = false
     setError('')
     setPrepared(null)
-    prepareImage(file, removeBg, (msg, frac) => !cancelled && setBusy({ msg, frac }))
+    const job = prepareImage(file, removeBg, (msg, frac) => !cancelled && setBusy({ msg, frac }))
+    prepRef.current = job
+    job
       .then((p) => {
-        if (cancelled) return URL.revokeObjectURL(p.url)
+        if (cancelled) return
         setPrepared(p)
         if (p.colour) setColour((c) => c || p.colour!)
       })
@@ -101,23 +109,34 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
           .eq('id', item.id)
         if (error) throw error
       } else {
-        if (!prepared) throw new Error('Add a photo first.')
-        const path = `${session.user.id}/${crypto.randomUUID()}.${prepared.extension}`
-        await uploadPhoto('wardrobe', path, prepared.blob)
-        const { data: row, error } = await sb.from('wardrobe_items').insert({
-          profile_id: profileId,
-          image_path: path,
-          name: name.trim(),
-          category,
-          color: colour.trim() || null,
-          tags: parseTags(tags),
-        }).select('id').single()
-        if (error) {
-          await sb.storage.from('wardrobe').remove([path]) // don't leave an orphan photo
-          throw error
-        }
-        toast(`${name.trim()} added to your wardrobe`)
-        onSaved(row.id)
+        const job = prepRef.current
+        if (!job || !file) throw new Error('Add a photo first.')
+        // close straight away; finishing the photo and saving carry on in the background
+        const values = { name: name.trim(), category, colour: colour.trim(), tags: parseTags(tags) }
+        const userId = session.user.id
+        const done = onSaved
+        runInBackground(values.name, async () => {
+          let path: string | null = null
+          try {
+            const p = await job
+            path = `${userId}/${crypto.randomUUID()}.${p.extension}`
+            await uploadPhoto('wardrobe', path, p.blob)
+            const { data: row, error } = await sb.from('wardrobe_items').insert({
+              profile_id: profileId,
+              image_path: path,
+              name: values.name,
+              category: values.category,
+              color: values.colour || p.colour || null,
+              tags: values.tags,
+            }).select('id').single()
+            if (error) throw error
+            toast(`${values.name} added to your wardrobe`)
+            done(row.id)
+          } catch (e) {
+            if (path) await sb.storage.from('wardrobe').remove([path]) // don't leave an orphan photo
+            toast(`Couldn’t save ${values.name}: ${friendlyError(e)}`, 'error')
+          }
+        })
         onClose()
         return
       }
@@ -175,7 +194,7 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
             </button>
           )}
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={save} disabled={saving || !!busy || (!editing && !prepared)}>
+          <button className="btn primary" onClick={save} disabled={saving || (editing ? false : !file || !!error)}>
             {saving ? <><span className="spinner" aria-hidden /> Saving</> : editing ? 'Save changes' : 'Add piece'}
           </button>
         </>
@@ -278,7 +297,7 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
 
         {error && <p className="alert error" role="alert"><Icon name="alert" /> {error}</p>}
 
-        {(editing || prepared) && (
+        {(editing || file) && (
           <>
             <label className="field">
               <span>Name</span>

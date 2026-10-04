@@ -1270,3 +1270,12 @@ dialog.sheet .sheet-head h2 { font-family: var(--font-display); }
 .bulk-status { flex: 1; min-width: 0; font-size: 0.88rem; display: flex; align-items: center; gap: 0.4rem; overflow-wrap: anywhere; }
 .bulk-row.done .bulk-status { color: var(--accent); font-weight: 600; }
 .bulk-row.failed .bulk-status { color: var(--danger, var(--ink)); }
+
+/* Shown while a photo finishes saving in the background */
+.saving-pill {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 0.6rem); transform: translateX(-50%);
+  z-index: 60; display: flex; align-items: center; gap: 0.5rem; max-width: calc(100% - 2rem);
+  padding: 0.45rem 0.95rem; border-radius: 99px; background: var(--ink); color: var(--bg);
+  font-size: 0.85rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 10px 24px -10px rgba(0, 0, 0, 0.45); animation: rise 0.3s var(--ease-out) backwards;
+}

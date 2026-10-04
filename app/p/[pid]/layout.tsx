@@ -8,6 +8,7 @@ import { ProfileCtx } from '@/lib/profile'
 import { readCache, writeCache } from '@/lib/tabCache'
 import ThemeScope from '@/components/ThemeScope'
 import Icon from '@/components/Icon'
+import SavingPill from '@/components/SavingPill'
 import type { StyleProfile } from '@/lib/types'
 
 function ProfileShell({ children }: { children: ReactNode }) {
@@ -79,6 +80,7 @@ function ProfileShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        <SavingPill />
       </div>
     </ProfileCtx.Provider>
   )

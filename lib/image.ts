@@ -96,6 +96,59 @@ function guessColour(c: HTMLCanvasElement): string | null {
   return top
 }
 
+type Model = 'isnet_fp16' | 'isnet_quint8'
+type ProgressFn = (key: string, current: number, total: number) => void
+
+// The first model is the normal one; the fallback is a smaller download that needs less memory.
+// They are different settings, so a failed first start-up is not reused by the library's cache.
+const MODELS: readonly Model[] = ['isnet_fp16', 'isnet_quint8']
+
+/* ---------- background remover, run in a Web Worker (keeps the screen responsive) ---------- */
+
+let worker: Worker | null = null
+let workerBroken = false
+let nextId = 1
+const pending = new Map<number, { resolve: (b: Blob | undefined) => void; reject: (e: Error) => void; progress?: ProgressFn }>()
+
+function getWorker(): Worker | null {
+  if (workerBroken || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null
+  if (worker) return worker
+  try {
+    worker = new Worker(new URL('./bgWorker.ts', import.meta.url), { type: 'module' })
+  } catch (e) {
+    console.warn('Background worker unavailable, using the main thread', e)
+    workerBroken = true
+    return null
+  }
+  worker.onmessage = (e: MessageEvent<{ id: number; ok?: boolean; blob?: Blob; error?: string; progress?: { key: string; current: number; total: number } }>) => {
+    const m = e.data
+    const job = pending.get(m.id)
+    if (!job) return
+    if (m.progress) return job.progress?.(m.progress.key, m.progress.current, m.progress.total)
+    pending.delete(m.id)
+    if (m.ok) job.resolve(m.blob)
+    else job.reject(new Error(m.error || 'Background removal failed'))
+  }
+  worker.onerror = (e) => {
+    // the worker itself could not start or crashed: fail its jobs and use the main thread from now on
+    console.warn('Background worker failed', e)
+    workerBroken = true
+    worker?.terminate()
+    worker = null
+    for (const [, job] of pending) job.reject(new Error('worker-crashed'))
+    pending.clear()
+  }
+  return worker
+}
+
+function inWorker(w: Worker, msg: { type: 'preload'; model: Model } | { type: 'remove'; model: Model; image: Blob }, progress?: ProgressFn) {
+  const id = nextId++
+  return new Promise<Blob | undefined>((resolve, reject) => {
+    pending.set(id, { resolve, reject, progress })
+    w.postMessage({ id, ...msg })
+  })
+}
+
 type Remover = typeof import('@imgly/background-removal')
 let removerModule: Promise<Remover> | null = null
 function loadRemover(): Promise<Remover> {
@@ -108,9 +161,23 @@ function loadRemover(): Promise<Remover> {
   return removerModule
 }
 
-// The first model is the normal one; the fallback is a smaller download that needs less memory.
-// They are different settings, so a failed first start-up is not reused by the library's cache.
-const MODELS = ['isnet_fp16', 'isnet_quint8'] as const
+/** Runs one removal: in the worker when possible, otherwise on the main thread. */
+async function removeOnce(image: Blob, model: Model, progress: ProgressFn): Promise<Blob> {
+  const w = getWorker()
+  if (w) {
+    try {
+      const b = await inWorker(w, { type: 'remove', model, image }, progress)
+      if (b) return b
+    } catch (e) {
+      if ((e as Error).message !== 'worker-crashed') throw e
+    }
+  }
+  const mod = await loadRemover().catch(() => {
+    throw new Error('The background remover could not load. Check your connection, or turn off “Remove background”.')
+  })
+  return mod.removeBackground(image, { model, output: { format: 'image/png' }, progress })
+}
+
 let warmUp: Promise<void> | null = null
 
 /**
@@ -119,38 +186,32 @@ let warmUp: Promise<void> | null = null
  */
 export function preloadBackgroundRemover() {
   if (warmUp) return warmUp
-  warmUp = loadRemover()
-    .then((m) => m.preload({ model: MODELS[0] }))
-    .catch((e) => {
-      console.warn('Background remover warm-up failed', e)
-      warmUp = null
-    })
+  const w = getWorker()
+  const run = w
+    ? inWorker(w, { type: 'preload', model: MODELS[0] }).then(() => undefined)
+    : loadRemover().then((m) => m.preload({ model: MODELS[0] }))
+  warmUp = run.catch((e) => {
+    console.warn('Background remover warm-up failed', e)
+    warmUp = null
+  })
   return warmUp
 }
 
 async function removeBackgroundWithRetry(input: Blob, onProgress?: Progress): Promise<Blob> {
-  let mod: Remover
-  try {
-    mod = await loadRemover()
-  } catch {
-    throw new Error('The background remover could not load. Check your connection, or turn off “Remove background”.')
-  }
   // if a warm-up is still running, let it finish rather than starting a second download
   if (warmUp) await warmUp
+  const progress: ProgressFn = (key, current, total) => {
+    if (key.startsWith('fetch')) onProgress?.('Downloading the background remover', total ? current / total : undefined)
+    else onProgress?.('Removing the background', undefined)
+  }
   let lastError: unknown
   for (const model of MODELS) {
     try {
-      return await mod.removeBackground(input, {
-        model,
-        output: { format: 'image/png' },
-        progress: (key: string, current: number, total: number) => {
-          if (key.startsWith('fetch')) onProgress?.('Downloading the background remover', total ? current / total : undefined)
-          else onProgress?.('Removing the background', undefined)
-        },
-      })
+      return await removeOnce(input, model, progress)
     } catch (e) {
       console.error('Background removal failed with', model, e)
       lastError = e
+      if ((e as Error).message?.startsWith('The background remover could not load')) throw e
       onProgress?.('Trying again', undefined)
     }
   }
