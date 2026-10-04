@@ -96,6 +96,68 @@ function guessColour(c: HTMLCanvasElement): string | null {
   return top
 }
 
+type Remover = typeof import('@imgly/background-removal')
+let removerModule: Promise<Remover> | null = null
+function loadRemover(): Promise<Remover> {
+  if (!removerModule) {
+    removerModule = import('@imgly/background-removal').catch((e) => {
+      removerModule = null // let the next try load it again
+      throw e
+    })
+  }
+  return removerModule
+}
+
+// The first model is the normal one; the fallback is a smaller download that needs less memory.
+// They are different settings, so a failed first start-up is not reused by the library's cache.
+const MODELS = ['isnet_fp16', 'isnet_quint8'] as const
+let warmUp: Promise<void> | null = null
+
+/**
+ * Starts downloading and starting the background remover in the background, so the first photo
+ * doesn't have to wait for it (and isn't the one that fails if the phone is slow).
+ */
+export function preloadBackgroundRemover() {
+  if (warmUp) return warmUp
+  warmUp = loadRemover()
+    .then((m) => m.preload({ model: MODELS[0] }))
+    .catch((e) => {
+      console.warn('Background remover warm-up failed', e)
+      warmUp = null
+    })
+  return warmUp
+}
+
+async function removeBackgroundWithRetry(input: Blob, onProgress?: Progress): Promise<Blob> {
+  let mod: Remover
+  try {
+    mod = await loadRemover()
+  } catch {
+    throw new Error('The background remover could not load. Check your connection, or turn off “Remove background”.')
+  }
+  // if a warm-up is still running, let it finish rather than starting a second download
+  if (warmUp) await warmUp
+  let lastError: unknown
+  for (const model of MODELS) {
+    try {
+      return await mod.removeBackground(input, {
+        model,
+        output: { format: 'image/png' },
+        progress: (key: string, current: number, total: number) => {
+          if (key.startsWith('fetch')) onProgress?.('Downloading the background remover', total ? current / total : undefined)
+          else onProgress?.('Removing the background', undefined)
+        },
+      })
+    } catch (e) {
+      console.error('Background removal failed with', model, e)
+      lastError = e
+      onProgress?.('Trying again', undefined)
+    }
+  }
+  console.error(lastError)
+  throw new Error('Background removal failed on this device. You can save the photo without removing it.')
+}
+
 export interface PreparedImage {
   blob: Blob
   url: string
@@ -114,26 +176,8 @@ export async function prepareImage(file: Blob, removeBg: boolean, onProgress?: P
 
   if (removeBg) {
     onProgress?.('Loading the background remover (first time takes a minute)', 0)
-    let removeBackground: typeof import('@imgly/background-removal').removeBackground
-    try {
-      ;({ removeBackground } = await import('@imgly/background-removal'))
-    } catch {
-      throw new Error('The background remover could not load. Check your connection, or turn off “Remove background”.')
-    }
     const input = await toBlob(canvas, 'image/png')
-    let result: Blob
-    try {
-      result = await removeBackground(input, {
-        output: { format: 'image/png' },
-        progress: (key: string, current: number, total: number) => {
-          if (key.startsWith('fetch')) onProgress?.('Downloading the background remover', total ? current / total : undefined)
-          else onProgress?.('Removing the background', undefined)
-        },
-      })
-    } catch (e) {
-      console.error(e)
-      throw new Error('Background removal failed on this device. You can save the photo without removing it.')
-    }
+    const result = await removeBackgroundWithRetry(input, onProgress)
     const bmp = await loadBitmap(result)
     const { c, ctx } = canvasFor(bmp.width, bmp.height)
     ctx.drawImage(bmp, 0, 0)

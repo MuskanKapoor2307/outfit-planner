@@ -3,9 +3,11 @@ import { useCallback, useEffect, useState } from 'react'
 import { useProfile } from '@/lib/profile'
 import { supabase } from '@/lib/supabase'
 import { useSignedUrls } from '@/lib/signedUrls'
+import { readCache, writeCache } from '@/lib/tabCache'
 import { CATEGORIES } from '@/lib/constants'
 import ItemGrid from '@/components/ItemGrid'
 import ItemSheet from '@/components/ItemSheet'
+import BulkEditSheet from '@/components/BulkEditSheet'
 import Icon from '@/components/Icon'
 import { useFeedback } from '@/components/Feedback'
 import { forgetSignedUrl } from '@/lib/signedUrls'
@@ -14,7 +16,8 @@ import type { WardrobeItem } from '@/lib/types'
 
 export default function WardrobePage() {
   const { profile } = useProfile()
-  const [items, setItems] = useState<WardrobeItem[] | null>(null)
+  const cacheKey = `wardrobe:${profile.id}`
+  const [items, setItems] = useState<WardrobeItem[] | null>(() => readCache<WardrobeItem[]>(cacheKey))
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [adding, setAdding] = useState(false)
@@ -22,12 +25,15 @@ export default function WardrobePage() {
   const [selecting, setSelecting] = useState(false)
   const [selected, setSelected] = useState<string[]>([])
   const [deleting, setDeleting] = useState(false)
+  const [bulkEditing, setBulkEditing] = useState(false)
   const { confirm, toast } = useFeedback()
 
   const load = useCallback(async () => {
-    const { data } = await supabase().from('wardrobe_items').select('*').eq('profile_id', profile.id).order('created_at', { ascending: false })
+    const { data, error } = await supabase().from('wardrobe_items').select('*').eq('profile_id', profile.id).order('created_at', { ascending: false })
+    if (error) return setItems((cur) => cur ?? [])
     setItems((data || []) as WardrobeItem[])
-  }, [profile.id])
+    writeCache(cacheKey, data)
+  }, [profile.id, cacheKey])
 
   useEffect(() => {
     load()
@@ -125,6 +131,9 @@ export default function WardrobePage() {
             <button className="btn small" onClick={() => setSelected(selected.length === visible.length ? [] : visible.map((v) => v.id))}>
               {selected.length === visible.length ? 'Clear' : 'Select all'}
             </button>
+            <button className="btn small" disabled={!selected.length || deleting} onClick={() => setBulkEditing(true)}>
+              <Icon name="edit" /> Edit
+            </button>
             <button className="btn small danger" disabled={!selected.length || deleting} onClick={deleteSelected}>
               {deleting ? <><span className="spinner" aria-hidden /> Deleting</> : <><Icon name="trash" /> Delete</>}
             </button>
@@ -136,6 +145,12 @@ export default function WardrobePage() {
         <button className="fab" onClick={() => setAdding(true)} aria-label="Add piece"><Icon name="plus" /></button>
       )}
 
+      <BulkEditSheet
+        open={bulkEditing}
+        onClose={() => setBulkEditing(false)}
+        items={(items || []).filter((i) => selected.includes(i.id))}
+        onSaved={() => load()}
+      />
       <ItemSheet open={adding} onClose={() => setAdding(false)} profileId={profile.id} onSaved={() => load()} />
       <ItemSheet
         open={!!editing}

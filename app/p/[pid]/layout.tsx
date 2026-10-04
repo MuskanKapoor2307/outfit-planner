@@ -5,6 +5,7 @@ import { useParams, usePathname } from 'next/navigation'
 import { RequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { ProfileCtx } from '@/lib/profile'
+import { readCache, writeCache } from '@/lib/tabCache'
 import ThemeScope from '@/components/ThemeScope'
 import Icon from '@/components/Icon'
 import type { StyleProfile } from '@/lib/types'
@@ -12,13 +13,19 @@ import type { StyleProfile } from '@/lib/types'
 function ProfileShell({ children }: { children: ReactNode }) {
   const { pid } = useParams<{ pid: string }>()
   const pathname = usePathname()
-  const [profile, setProfile] = useState<StyleProfile | null>(null)
+  // show the last-known profile instantly (kept for this tab), then refresh it from the database
+  const [profile, setProfile] = useState<StyleProfile | null>(() => readCache<StyleProfile>(`profile:${pid}`))
   const [missing, setMissing] = useState(false)
 
   const reload = useCallback(async () => {
     const { data } = await supabase().from('style_profiles').select('*').eq('id', pid).maybeSingle()
-    if (data) setProfile(data as StyleProfile)
-    else setMissing(true)
+    if (data) {
+      setProfile(data as StyleProfile)
+      writeCache(`profile:${pid}`, data)
+    } else {
+      setMissing(true)
+      writeCache(`profile:${pid}`, null)
+    }
   }, [pid])
 
   useEffect(() => {

@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from 'react'
 import Sheet from './Sheet'
 import { CATEGORIES, friendlyError } from '@/lib/constants'
-import { prepareImage, type PreparedImage } from '@/lib/image'
+import { prepareImage, preloadBackgroundRemover, type PreparedImage } from '@/lib/image'
 import { supabase } from '@/lib/supabase'
+import { uploadPhoto } from '@/lib/upload'
 import { useAuth } from '@/lib/auth'
 import { forgetSignedUrl } from '@/lib/signedUrls'
 import { bgRemovalPreference, setBgRemovalPreference } from '@/lib/ai/settings'
@@ -60,6 +61,11 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
     setTags(item?.tags.join(', ') ?? '')
   }, [open, item, preset])
 
+  // start getting the background remover ready while the person picks a photo
+  useEffect(() => {
+    if (open && !item && removeBg) preloadBackgroundRemover()
+  }, [open, item, removeBg])
+
   // process the photo whenever the file or the toggle changes
   useEffect(() => {
     if (!file) return
@@ -97,8 +103,7 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
       } else {
         if (!prepared) throw new Error('Add a photo first.')
         const path = `${session.user.id}/${crypto.randomUUID()}.${prepared.extension}`
-        const up = await sb.storage.from('wardrobe').upload(path, prepared.blob, { contentType: prepared.blob.type, upsert: false })
-        if (up.error) throw up.error
+        await uploadPhoto('wardrobe', path, prepared.blob)
         const { data: row, error } = await sb.from('wardrobe_items').insert({
           profile_id: profileId,
           image_path: path,

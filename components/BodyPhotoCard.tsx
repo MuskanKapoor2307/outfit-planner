@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth'
 import { getSignedUrls, forgetSignedUrl } from '@/lib/signedUrls'
 import { prepareImage, type PreparedImage } from '@/lib/image'
+import { uploadPhoto } from '@/lib/upload'
 import { friendlyError } from '@/lib/constants'
 import type { StyleProfile } from '@/lib/types'
 
@@ -46,8 +47,7 @@ export default function BodyPhotoCard({ profile, onChanged }: { profile: StylePr
     const sb = supabase()
     try {
       const path = `${session.user.id}/${profile.id}-${crypto.randomUUID()}.${prepared.extension}`
-      const up = await sb.storage.from('people').upload(path, prepared.blob, { contentType: prepared.blob.type, upsert: false })
-      if (up.error) throw up.error
+      await uploadPhoto('people', path, prepared.blob)
       const old = profile.body_photo_path
       const { error } = await sb.from('style_profiles').update({ body_photo_path: path, body_photo_consent_at: new Date().toISOString() }).eq('id', profile.id)
       if (error) {

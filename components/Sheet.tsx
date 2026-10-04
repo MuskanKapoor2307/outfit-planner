@@ -53,6 +53,42 @@ export default function Sheet({
     }
   }, [open])
 
+  // Phones: keep the sheet above the on-screen keyboard and the field being typed in visible.
+  // iPhone Safari doesn't shrink the page for the keyboard, so we measure the visible area ourselves.
+  useEffect(() => {
+    const d = ref.current
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!open || !d || !vv) return
+    const update = () => {
+      const keyboard = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      d.style.setProperty('--kb', `${Math.round(keyboard)}px`)
+      d.style.setProperty('--vvh', `${Math.round(vv.height)}px`)
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const onFocus = (e: FocusEvent) => {
+      const t = e.target as HTMLElement
+      if (!t.matches('input:not([type=checkbox]):not([type=radio]):not([type=file]), textarea, select')) return
+      clearTimeout(timer)
+      // wait for the keyboard to finish sliding up, then bring the field into view
+      timer = setTimeout(() => {
+        update()
+        t.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      }, 320)
+    }
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    d.addEventListener('focusin', onFocus)
+    return () => {
+      clearTimeout(timer)
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+      d.removeEventListener('focusin', onFocus)
+      d.style.removeProperty('--kb')
+      d.style.removeProperty('--vvh')
+    }
+  }, [open])
+
   return (
     <dialog
       ref={ref}
