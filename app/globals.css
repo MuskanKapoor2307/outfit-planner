@@ -1291,3 +1291,13 @@ dialog.sheet .sheet-head h2 { font-family: var(--font-display); }
 .idea-pieces .pic img { width: 84%; height: 84%; object-fit: contain; }
 .idea-pieces figcaption { font-size: 0.72rem; line-height: 1.2; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .idea-tips { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.2rem; }
+
+/* Battery & heat: decorative motion plays a few times when a screen opens, then rests.
+   (Endless animations make the phone redraw the screen non-stop, which warms it up.)
+   Spinners, progress bars and loading shimmers still loop, but only while something is loading. */
+.deco, .page-title h1::after, .who-tile .emoji, .empty-state .art, .auth-art .garment, .btn.ai.primary::after { animation-iteration-count: 3; }
+.auth-art .sticker, .auth-art .sticker.twinkle { animation-iteration-count: 3, 1; }
+@media (pointer: coarse) {
+  /* a static shadow is cheaper than an animated filtered one */
+  .deco { filter: none; text-shadow: 0 3px 3px rgba(0, 0, 0, 0.2); }
+}

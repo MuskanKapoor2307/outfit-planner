@@ -2,7 +2,7 @@
 
 export type Progress = (message: string, fraction?: number) => void
 
-const MAX_INPUT = 1600 // px — size sent to the background remover
+const MAX_INPUT = 1280 // px — size sent to the background remover (it works at ~1024 internally)
 const MAX_OUTPUT = 1024 // px — size we store
 
 async function loadBitmap(file: Blob): Promise<ImageBitmap> {
@@ -101,7 +101,24 @@ type ProgressFn = (key: string, current: number, total: number) => void
 
 // The first model is the normal one; the fallback is a smaller download that needs less memory.
 // They are different settings, so a failed first start-up is not reused by the library's cache.
-const MODELS: readonly Model[] = ['isnet_fp16', 'isnet_quint8']
+// On phones the smaller model goes first: it's much lighter to run (less heat and battery) and the
+// cut-outs look nearly the same. Computers start with the sharper one.
+const isPhone = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+const MODELS: readonly Model[] = isPhone ? ['isnet_quint8', 'isnet_fp16'] : ['isnet_fp16', 'isnet_quint8']
+
+// The remover holds a large model in memory. Shut it down when it hasn't been used for a while,
+// so the phone can free that memory and cool down.
+const IDLE_MS = 90_000
+let idleTimer: ReturnType<typeof setTimeout> | undefined
+function scheduleIdleShutdown() {
+  clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    if (pending.size || !worker) return
+    worker.terminate()
+    worker = null
+    warmUp = null
+  }, IDLE_MS)
+}
 
 /* ---------- background remover, run in a Web Worker (keeps the screen responsive) ---------- */
 
@@ -126,6 +143,7 @@ function getWorker(): Worker | null {
     if (!job) return
     if (m.progress) return job.progress?.(m.progress.key, m.progress.current, m.progress.total)
     pending.delete(m.id)
+    if (!pending.size) scheduleIdleShutdown()
     if (m.ok) job.resolve(m.blob)
     else job.reject(new Error(m.error || 'Background removal failed'))
   }

@@ -123,6 +123,8 @@ export default function BulkUploadSheet({
         if (error) throw error
         saved++
         update(row.id, { status: 'done', msg: undefined })
+        // a short breather between heavy photos keeps the phone from heating up
+        if (removeBg) await new Promise((r) => setTimeout(r, 800))
       } catch (e) {
         if (path) await sb.storage.from('wardrobe').remove([path]) // don't leave an orphan photo
         update(row.id, { status: 'failed', msg: friendlyError(e) })
