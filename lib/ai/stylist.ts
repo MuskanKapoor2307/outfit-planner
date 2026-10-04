@@ -43,14 +43,17 @@ export interface StylistResult {
   pinterest_searches: string[]
 }
 
+/** How many different looks to ask for. */
+export const LOOK_COUNT = 3
+
 const describe = (i: WardrobeItem) =>
   `${i.name} (${categoryLabel(i.category).toLowerCase()}${i.color ? `, ${i.color.toLowerCase()}` : ''}${i.tags.length ? `; ${i.tags.slice(0, 4).join(', ')}` : ''})`
 
 const ASK_TEXT: Record<AskType, string> = {
-  complete: 'Build one complete outfit around the pieces in the photos (or from scratch if there are none): what else to wear, footwear, accessories, bag, layers, hair and makeup or grooming.',
-  footwear: 'Only suggest footwear that works with these pieces. Leave unrelated fields empty.',
-  accessories: 'Only suggest jewellery or watch, bag and accessories for these pieces. Leave unrelated fields empty.',
-  hair: 'Only suggest hair and makeup or grooming for this look. Leave unrelated fields empty.',
+  complete: `Give ${LOOK_COUNT} DIFFERENT complete outfit options around the pieces in the photos (or from scratch if there are none), each with a clearly different vibe: what else to wear, footwear, accessories, bag, layers, hair and makeup or grooming.`,
+  footwear: `Give ${LOOK_COUNT} different footwear options that work with these pieces (one per option). Leave unrelated fields empty.`,
+  accessories: `Give ${LOOK_COUNT} different jewellery or watch, bag and accessory options for these pieces. Leave unrelated fields empty.`,
+  hair: `Give ${LOOK_COUNT} different hair and makeup or grooming options for this look. Leave unrelated fields empty.`,
   custom: '',
 }
 
@@ -63,7 +66,10 @@ export function buildPrompt(input: StylistInput) {
     .slice(0, 120)
     .map((w, i) => ({ code: `W${i + 1}`, item: w }))
 
-  const ask = input.ask === 'custom' ? input.customAsk.trim() || 'Complete the look.' : ASK_TEXT[input.ask]
+  const ask =
+    input.ask === 'custom'
+      ? `${input.customAsk.trim() || 'Complete the look.'} Give 2 or ${LOOK_COUNT} different options if the question allows it.`
+      : ASK_TEXT[input.ask]
   const forWhom = input.styleFor === 'men' ? 'a man' : input.styleFor === 'women' ? 'a woman' : 'a person (keep suggestions gender-neutral unless the pieces suggest otherwise)'
 
   const lines = [
@@ -83,16 +89,20 @@ export function buildPrompt(input: StylistInput) {
       ? `My wardrobe (text only, use these codes if you pick something I own):\n${wardrobeCodes.map((w) => `${w.code}: ${describe(w.item)}`).join('\n')}`
       : 'My wardrobe list was not shared.',
     '',
-    `Reply with ONLY this JSON (use "" or [] for anything that doesn't apply):
+    `Reply with ONLY this JSON (use "" or [] for anything that doesn't apply). Each option in "looks" must be different:
 {
-  "look_name": "short catchy name, max 6 words",
-  "summary": "2-3 sentences on the idea and why it works for this occasion",
-  "use_from_wardrobe": [{"code": "W1", "why": "short reason"}],
-  "footwear": "", "accessories": "", "jewellery": "", "bag": "", "layers": "",
-  "hair": "", "makeup_or_grooming": "",
-  "colour_palette": ["3-5 colour names"],
-  "to_buy": ["only if something important is missing"],
-  "pinterest_searches": ["2-3 short Pinterest search phrases for this exact look"]
+  "looks": [
+    {
+      "look_name": "short catchy name, max 6 words",
+      "summary": "2-3 sentences on the idea and why it works for this occasion",
+      "use_from_wardrobe": [{"code": "W1", "why": "short reason"}],
+      "footwear": "", "accessories": "", "jewellery": "", "bag": "", "layers": "",
+      "hair": "", "makeup_or_grooming": "",
+      "colour_palette": ["3-5 colour names"],
+      "to_buy": ["only if something important is missing"],
+      "pinterest_searches": ["2-3 short, specific photo search phrases for this exact look, e.g. 'white linen co-ord tan sandals beach'"]
+    }
+  ]
 }`,
   ].filter((l) => l !== null)
 
@@ -103,8 +113,8 @@ const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice
 const strList = (v: unknown, n: number, max: number) =>
   Array.isArray(v) ? v.map((x) => str(x, max)).filter(Boolean).slice(0, n) : []
 
-/** Reads the AI's reply. Treats it as untrusted: only known fields, plain text, known codes. */
-export function parseResult(raw: string, codes: { code: string; item: WardrobeItem }[]): StylistResult {
+/** Reads the AI's reply. Treats it as untrusted: only known fields, plain text, known codes. 1 to 3 looks. */
+export function parseResult(raw: string, codes: { code: string; item: WardrobeItem }[]): StylistResult[] {
   let t = raw.trim().replace(/^```(?:json)?/i, '').replace(/```\s*$/, '')
   const a = t.indexOf('{')
   const b = t.lastIndexOf('}')
@@ -117,6 +127,17 @@ export function parseResult(raw: string, codes: { code: string; item: WardrobeIt
     throw new Error('The reply couldn’t be read. Try again, or paste the whole reply including the { and }.')
   }
   const byCode = new Map(codes.map((c) => [c.code.toUpperCase(), c.item.id]))
+  // new format: { looks: [...] }; older single-look replies are still accepted
+  const raws = Array.isArray(j.looks) ? (j.looks as unknown[]) : [j]
+  const looks = raws
+    .slice(0, LOOK_COUNT)
+    .map((x) => readLook((x || {}) as Record<string, unknown>, byCode))
+    .filter((l) => l.summary || l.use_from_wardrobe.length || l.footwear || l.accessories || l.jewellery || l.hair || l.makeup_or_grooming)
+  if (!looks.length) throw new Error('The reply had no outfit ideas in it. Try again.')
+  return looks
+}
+
+function readLook(j: Record<string, unknown>, byCode: Map<string, string>): StylistResult {
   const used = Array.isArray(j.use_from_wardrobe)
     ? (j.use_from_wardrobe as unknown[])
         .map((u) => {
@@ -145,6 +166,8 @@ export function parseResult(raw: string, codes: { code: string; item: WardrobeIt
 }
 
 export const pinterestUrl = (q: string) => `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(q)}`
+/** Photo search (opens in a new tab; nothing is loaded inside the app). */
+export const imagesUrl = (q: string) => `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`
 
 /** Full text for copy-paste mode (their own Claude / ChatGPT app). */
 export function manualPrompt(text: string, photoCount: number) {

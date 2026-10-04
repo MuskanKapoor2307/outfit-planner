@@ -1301,3 +1301,10 @@ dialog.sheet .sheet-head h2 { font-family: var(--font-display); }
   /* a static shadow is cheaper than an animated filtered one */
   .deco { filter: none; text-shadow: 0 3px 3px rgba(0, 0, 0, 0.2); }
 }
+
+/* AI stylist: switch between 2-3 outfit options, and photo search links per look */
+.look-tabs { display: flex; gap: 0.45rem; overflow-x: auto; padding-bottom: 0.3rem; margin-bottom: 0.4rem; scrollbar-width: none; }
+.look-tabs .chip { flex: none; display: grid; justify-items: start; text-align: left; gap: 0.05rem; max-width: 46vw; }
+.look-tabs .chip small { font-size: 0.72rem; opacity: 0.8; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.photo-idea { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; padding: 0.55rem 0.7rem; border-radius: var(--radius-sm); background: var(--surface-2); }
+.photo-idea > span:first-child { font-size: 0.9rem; min-width: 0; overflow-wrap: anywhere; flex: 1 1 10rem; }
