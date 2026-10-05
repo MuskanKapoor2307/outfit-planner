@@ -31,11 +31,14 @@ export default function BulkUploadSheet({
   onClose,
   profileId,
   onSaved,
+  initialFiles,
 }: {
   open: boolean
   onClose: () => void
   profileId: string
   onSaved: () => void
+  /** photos already picked elsewhere (e.g. several chosen in the Add piece sheet) */
+  initialFiles?: File[] | null
 }) {
   const { session } = useAuth()
   const { confirm, toast } = useFeedback()
@@ -62,7 +65,8 @@ export default function BulkUploadSheet({
     setRunning(false)
     setFinished(false)
     stopRef.current = false
-  }, [open])
+    if (initialFiles?.length) addFiles(initialFiles, [])
+  }, [open, initialFiles])
 
   // free the preview images when the list is cleared or the sheet goes away
   useEffect(() => () => rowsRef.current.forEach((r) => URL.revokeObjectURL(r.thumb)), [])
@@ -71,9 +75,9 @@ export default function BulkUploadSheet({
     if (open && removeBg) preloadBackgroundRemover()
   }, [open, removeBg])
 
-  function addFiles(list: FileList | null) {
+  function addFiles(list: FileList | File[] | null, current: Row[] = rows) {
     if (!list?.length) return
-    const room = MAX_FILES - rows.length
+    const room = MAX_FILES - current.length
     const picked = [...list].filter((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name)).slice(0, Math.max(0, room))
     if (list.length > room) toast(`You can add up to ${MAX_FILES} photos at a time.`, 'error')
     setRows((r) => [

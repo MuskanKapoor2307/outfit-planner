@@ -24,12 +24,14 @@ interface Props {
   preset?: { name: string; category?: string | null } | null
   title?: string
   onSaved: (newItemId?: string) => void
+  /** when given, the photo picker allows several photos and passes them here (bulk add) */
+  onPickMany?: (files: File[]) => void
 }
 
 const parseTags = (s: string) =>
   [...new Set(s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 12).map((t) => t.slice(0, 24))
 
-export default function ItemSheet({ open, onClose, profileId, item, imageUrl, preset, title, onSaved }: Props) {
+export default function ItemSheet({ open, onClose, profileId, item, imageUrl, preset, title, onSaved, onPickMany }: Props) {
   const { session } = useAuth()
   const { confirm, toast } = useFeedback()
   const [dragOver, setDragOver] = useState(false)
@@ -208,10 +210,12 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
               type="file"
               accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               className="sr-only"
+              multiple={!!onPickMany}
               onChange={(e) => {
-                const f = e.target.files?.[0]
-                if (f) setFile(f)
+                const files = [...(e.target.files ?? [])]
                 e.target.value = ''
+                if (files.length > 1 && onPickMany) return onPickMany(files)
+                if (files[0]) setFile(files[0])
               }}
             />
             <input
@@ -238,13 +242,16 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
                 onDrop={(e) => {
                   e.preventDefault()
                   setDragOver(false)
-                  const f = e.dataTransfer.files?.[0]
-                  if (f) setFile(f)
+                  const files = [...(e.dataTransfer.files ?? [])]
+                  if (files.length > 1 && onPickMany) return onPickMany(files)
+                  if (files[0]) setFile(files[0])
                 }}
               >
                 <Icon name="upload" />
-                <strong>Choose or drop a photo</strong>
-                <span className="muted small">A photo of the piece, or a screenshot from a shopping site.</span>
+                <strong>{onPickMany ? 'Choose or drop photos' : 'Choose or drop a photo'}</strong>
+                <span className="muted small">
+                  {onPickMany ? 'Pick one photo, or select several to add them all at once.' : 'A photo of the piece, or a screenshot from a shopping site.'}
+                </span>
               </button>
             )}
             {!file && (

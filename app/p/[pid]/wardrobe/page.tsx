@@ -28,6 +28,7 @@ export default function WardrobePage() {
   const [deleting, setDeleting] = useState(false)
   const [bulkEditing, setBulkEditing] = useState(false)
   const [bulkAdding, setBulkAdding] = useState(false)
+  const [manyFiles, setManyFiles] = useState<File[] | null>(null)
   const { confirm, toast } = useFeedback()
 
   const load = useCallback(async () => {
@@ -151,14 +152,26 @@ export default function WardrobePage() {
         <button className="fab" onClick={() => setAdding(true)} aria-label="Add piece"><Icon name="plus" /></button>
       )}
 
-      <BulkUploadSheet open={bulkAdding} onClose={() => setBulkAdding(false)} profileId={profile.id} onSaved={() => load()} />
+      <BulkUploadSheet
+        open={bulkAdding}
+        onClose={() => { setBulkAdding(false); setManyFiles(null) }}
+        profileId={profile.id}
+        initialFiles={manyFiles}
+        onSaved={() => load()}
+      />
       <BulkEditSheet
         open={bulkEditing}
         onClose={() => setBulkEditing(false)}
         items={(items || []).filter((i) => selected.includes(i.id))}
         onSaved={() => load()}
       />
-      <ItemSheet open={adding} onClose={() => setAdding(false)} profileId={profile.id} onSaved={() => load()} />
+      <ItemSheet
+        open={adding}
+        onClose={() => setAdding(false)}
+        profileId={profile.id}
+        onSaved={() => load()}
+        onPickMany={(files) => { setAdding(false); setManyFiles(files); setBulkAdding(true) }}
+      />
       <ItemSheet
         open={!!editing}
         onClose={() => setEditing(null)}
