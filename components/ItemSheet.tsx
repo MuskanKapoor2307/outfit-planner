@@ -2,8 +2,10 @@
 import { useEffect, useRef, useState } from 'react'
 import Sheet from './Sheet'
 import { CATEGORIES, friendlyError } from '@/lib/constants'
-import { prepareImage, type PreparedImage } from '@/lib/image'
+import { prepareImage, preloadBackgroundRemover, type PreparedImage } from '@/lib/image'
 import { supabase } from '@/lib/supabase'
+import { uploadPhoto } from '@/lib/upload'
+import { runInBackground } from '@/lib/backgroundJobs'
 import { useAuth } from '@/lib/auth'
 import { forgetSignedUrl } from '@/lib/signedUrls'
 import { bgRemovalPreference, setBgRemovalPreference } from '@/lib/ai/settings'
@@ -22,17 +24,20 @@ interface Props {
   preset?: { name: string; category?: string | null } | null
   title?: string
   onSaved: (newItemId?: string) => void
+  /** when given, the photo picker allows several photos and passes them here (bulk add) */
+  onPickMany?: (files: File[]) => void
 }
 
 const parseTags = (s: string) =>
   [...new Set(s.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 12).map((t) => t.slice(0, 24))
 
-export default function ItemSheet({ open, onClose, profileId, item, imageUrl, preset, title, onSaved }: Props) {
+export default function ItemSheet({ open, onClose, profileId, item, imageUrl, preset, title, onSaved, onPickMany }: Props) {
   const { session } = useAuth()
   const { confirm, toast } = useFeedback()
   const [dragOver, setDragOver] = useState(false)
   const editing = !!item
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
   const [removeBg, setRemoveBg] = useState(true)
   const [busy, setBusy] = useState<{ msg: string; frac?: number } | null>(null)
@@ -59,15 +64,27 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
     setTags(item?.tags.join(', ') ?? '')
   }, [open, item, preset])
 
-  // process the photo whenever the file or the toggle changes
+  // start getting the background remover ready while the person picks a photo
   useEffect(() => {
-    if (!file) return
+    if (open && !item && removeBg) preloadBackgroundRemover()
+  }, [open, item, removeBg])
+
+  // process the photo whenever the file or the toggle changes. The work itself is kept in a ref,
+  // so tapping Add can close the sheet and let it finish in the background.
+  const prepRef = useRef<Promise<PreparedImage> | null>(null)
+  useEffect(() => {
+    if (!file) {
+      prepRef.current = null
+      return
+    }
     let cancelled = false
     setError('')
     setPrepared(null)
-    prepareImage(file, removeBg, (msg, frac) => !cancelled && setBusy({ msg, frac }))
+    const job = prepareImage(file, removeBg, (msg, frac) => !cancelled && setBusy({ msg, frac }))
+    prepRef.current = job
+    job
       .then((p) => {
-        if (cancelled) return URL.revokeObjectURL(p.url)
+        if (cancelled) return
         setPrepared(p)
         if (p.colour) setColour((c) => c || p.colour!)
       })
@@ -94,24 +111,34 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
           .eq('id', item.id)
         if (error) throw error
       } else {
-        if (!prepared) throw new Error('Add a photo first.')
-        const path = `${session.user.id}/${crypto.randomUUID()}.${prepared.extension}`
-        const up = await sb.storage.from('wardrobe').upload(path, prepared.blob, { contentType: prepared.blob.type, upsert: false })
-        if (up.error) throw up.error
-        const { data: row, error } = await sb.from('wardrobe_items').insert({
-          profile_id: profileId,
-          image_path: path,
-          name: name.trim(),
-          category,
-          color: colour.trim() || null,
-          tags: parseTags(tags),
-        }).select('id').single()
-        if (error) {
-          await sb.storage.from('wardrobe').remove([path]) // don't leave an orphan photo
-          throw error
-        }
-        toast(`${name.trim()} added to your wardrobe`)
-        onSaved(row.id)
+        const job = prepRef.current
+        if (!job || !file) throw new Error('Add a photo first.')
+        // close straight away; finishing the photo and saving carry on in the background
+        const values = { name: name.trim(), category, colour: colour.trim(), tags: parseTags(tags) }
+        const userId = session.user.id
+        const done = onSaved
+        runInBackground(values.name, async () => {
+          let path: string | null = null
+          try {
+            const p = await job
+            path = `${userId}/${crypto.randomUUID()}.${p.extension}`
+            await uploadPhoto('wardrobe', path, p.blob)
+            const { data: row, error } = await sb.from('wardrobe_items').insert({
+              profile_id: profileId,
+              image_path: path,
+              name: values.name,
+              category: values.category,
+              color: values.colour || p.colour || null,
+              tags: values.tags,
+            }).select('id').single()
+            if (error) throw error
+            toast(`${values.name} added to your wardrobe`)
+            done(row.id)
+          } catch (e) {
+            if (path) await sb.storage.from('wardrobe').remove([path]) // don't leave an orphan photo
+            toast(`Couldn’t save ${values.name}: ${friendlyError(e)}`, 'error')
+          }
+        })
         onClose()
         return
       }
@@ -169,7 +196,7 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
             </button>
           )}
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn primary" onClick={save} disabled={saving || !!busy || (!editing && !prepared)}>
+          <button className="btn primary" onClick={save} disabled={saving || (editing ? false : !file || !!error)}>
             {saving ? <><span className="spinner" aria-hidden /> Saving</> : editing ? 'Save changes' : 'Add piece'}
           </button>
         </>
@@ -183,6 +210,22 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
               type="file"
               accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
               className="sr-only"
+              multiple={!!onPickMany}
+              onChange={(e) => {
+                const files = [...(e.target.files ?? [])]
+                e.target.value = ''
+                if (files.length > 1 && onPickMany) return onPickMany(files)
+                if (files[0]) setFile(files[0])
+              }}
+            />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              tabIndex={-1}
+              aria-hidden
               onChange={(e) => {
                 const f = e.target.files?.[0]
                 if (f) setFile(f)
@@ -199,13 +242,21 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
                 onDrop={(e) => {
                   e.preventDefault()
                   setDragOver(false)
-                  const f = e.dataTransfer.files?.[0]
-                  if (f) setFile(f)
+                  const files = [...(e.dataTransfer.files ?? [])]
+                  if (files.length > 1 && onPickMany) return onPickMany(files)
+                  if (files[0]) setFile(files[0])
                 }}
               >
                 <Icon name="upload" />
-                <strong>Choose or drop a photo</strong>
-                <span className="muted small">A photo of the piece, or a screenshot from a shopping site.</span>
+                <strong>{onPickMany ? 'Choose or drop photos' : 'Choose or drop a photo'}</strong>
+                <span className="muted small">
+                  {onPickMany ? 'Pick one photo, or select several to add them all at once.' : 'A photo of the piece, or a screenshot from a shopping site.'}
+                </span>
+              </button>
+            )}
+            {!file && (
+              <button type="button" className="btn camera-btn" onClick={() => cameraRef.current?.click()}>
+                <Icon name="camera" /> Take a photo
               </button>
             )}
             <label className="switch">
@@ -241,14 +292,19 @@ export default function ItemSheet({ open, onClose, profileId, item, imageUrl, pr
           </div>
         )}
         {file && !busy && (
-          <button type="button" className="btn small" onClick={() => fileRef.current?.click()}>
-            Use a different photo
-          </button>
+          <div className="row">
+            <button type="button" className="btn small" onClick={() => fileRef.current?.click()}>
+              <Icon name="image" /> Use a different photo
+            </button>
+            <button type="button" className="btn small camera-btn" onClick={() => cameraRef.current?.click()}>
+              <Icon name="camera" /> Retake
+            </button>
+          </div>
         )}
 
         {error && <p className="alert error" role="alert"><Icon name="alert" /> {error}</p>}
 
-        {(editing || prepared) && (
+        {(editing || file) && (
           <>
             <label className="field">
               <span>Name</span>

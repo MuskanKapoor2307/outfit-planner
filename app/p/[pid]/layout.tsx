@@ -5,20 +5,28 @@ import { useParams, usePathname } from 'next/navigation'
 import { RequireAuth } from '@/lib/auth'
 import { supabase } from '@/lib/supabase'
 import { ProfileCtx } from '@/lib/profile'
+import { readCache, writeCache } from '@/lib/tabCache'
 import ThemeScope from '@/components/ThemeScope'
 import Icon from '@/components/Icon'
+import SavingPill from '@/components/SavingPill'
 import type { StyleProfile } from '@/lib/types'
 
 function ProfileShell({ children }: { children: ReactNode }) {
   const { pid } = useParams<{ pid: string }>()
   const pathname = usePathname()
-  const [profile, setProfile] = useState<StyleProfile | null>(null)
+  // show the last-known profile instantly (kept for this tab), then refresh it from the database
+  const [profile, setProfile] = useState<StyleProfile | null>(() => readCache<StyleProfile>(`profile:${pid}`))
   const [missing, setMissing] = useState(false)
 
   const reload = useCallback(async () => {
     const { data } = await supabase().from('style_profiles').select('*').eq('id', pid).maybeSingle()
-    if (data) setProfile(data as StyleProfile)
-    else setMissing(true)
+    if (data) {
+      setProfile(data as StyleProfile)
+      writeCache(`profile:${pid}`, data)
+    } else {
+      setMissing(true)
+      writeCache(`profile:${pid}`, null)
+    }
   }, [pid])
 
   useEffect(() => {
@@ -30,7 +38,7 @@ function ProfileShell({ children }: { children: ReactNode }) {
       <div className="page-center">
         <div className="empty-state">
           <h2>Profile not found</h2>
-          <Link className="btn primary" href="/">Back to profiles</Link>
+          <a className="btn primary" href="/">Back to profiles</a>
         </div>
       </div>
     )
@@ -60,7 +68,7 @@ function ProfileShell({ children }: { children: ReactNode }) {
             <span className="avatar" aria-hidden>{profile.emoji || '🌸'}</span>
             <strong>{profile.name}</strong>
           </Link>
-          <Link href="/" className="btn ghost small">Switch profile</Link>
+          <a href="/" className="btn ghost small">Switch profile</a>
         </header>
         <main key={pathname} className="page-enter">{children}</main>
         </div>
@@ -72,6 +80,7 @@ function ProfileShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
+        <SavingPill />
       </div>
     </ProfileCtx.Provider>
   )

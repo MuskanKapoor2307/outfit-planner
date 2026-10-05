@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useProfile } from '@/lib/profile'
+import { readCache, writeCache } from '@/lib/tabCache'
 import { supabase } from '@/lib/supabase'
 import { daysUntil, prettyDate, toISODate, datesBetween } from '@/lib/constants'
 import TripSheet from '@/components/TripSheet'
@@ -17,8 +18,9 @@ interface Stats { sections: number; picked: number; looks: number }
 export default function TripsPage() {
   const { profile } = useProfile()
   const router = useRouter()
-  const [trips, setTrips] = useState<Trip[] | null>(null)
-  const [stats, setStats] = useState<Record<string, Stats>>({})
+  const cacheKey = `trips:${profile.id}`
+  const [trips, setTrips] = useState<Trip[] | null>(() => readCache<{ trips: Trip[] }>(cacheKey)?.trips ?? null)
+  const [stats, setStats] = useState<Record<string, Stats>>(() => readCache<{ stats: Record<string, Stats> }>(cacheKey)?.stats ?? {})
   const [creating, setCreating] = useState(false)
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
   const { confirm, toast } = useFeedback()
@@ -28,6 +30,7 @@ export default function TripsPage() {
     const { data } = await sb.from('trips').select('*').eq('profile_id', profile.id).order('start_date', { ascending: false })
     const list = (data || []) as Trip[]
     setTrips(list)
+    if (!list.length) writeCache(cacheKey, { trips: list, stats: {} })
     if (list.length) {
       const ids = list.map((t) => t.id)
       const [{ data: secs }, { data: outs }] = await Promise.all([
@@ -46,8 +49,9 @@ export default function TripsPage() {
         }
       }
       setStats(st)
+      writeCache(cacheKey, { trips: list, stats: st })
     }
-  }, [profile.id])
+  }, [profile.id, cacheKey])
 
   useEffect(() => {
     load()

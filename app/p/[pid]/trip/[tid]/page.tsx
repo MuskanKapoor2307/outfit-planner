@@ -14,6 +14,7 @@ import OutfitSheet from '@/components/OutfitSheet'
 import TripSheet from '@/components/TripSheet'
 import SectionSheet from '@/components/SectionSheet'
 import AiStylistSheet from '@/components/AiStylistSheet'
+import OutfitIdeasSheet from '@/components/OutfitIdeasSheet'
 import ShoppingList from '@/components/ShoppingList'
 import TryOnSheet from '@/components/TryOnSheet'
 import { useFeedback } from '@/components/Feedback'
@@ -33,6 +34,7 @@ export default function TripPage() {
   const [day, setDay] = useState('')
   const [editing, setEditing] = useState<{ outfit: Outfit | null; sectionId: string } | null>(null)
   const [styling, setStyling] = useState<Section | null>(null)
+  const [ideasFor, setIdeasFor] = useState<Section | null>(null)
   const [sectionSheet, setSectionSheet] = useState<{ section: Section | null } | null>(null)
   const [editTrip, setEditTrip] = useState(false)
   const [view, setView] = useState<'plan' | 'shop'>('plan')
@@ -231,6 +233,10 @@ export default function TripPage() {
               <Icon name="plus" />
               {looks.length ? 'Add another option' : 'Plan a look'}
             </button>
+            <button className="add-tile" onClick={() => setIdeasFor(s)}>
+              <Icon name="wand" />
+              Outfit ideas
+            </button>
             {aiOn && (
               <button className="add-tile ai" onClick={() => setStyling(s)}>
                 <Icon name="sparkle" />
@@ -333,6 +339,17 @@ export default function TripPage() {
         sections={sections}
         outfit={editing?.outfit}
         defaultSectionId={editing?.sectionId ?? ''}
+        items={items}
+        urls={urls}
+        onSaved={load}
+      />
+      <OutfitIdeasSheet
+        open={!!ideasFor}
+        onClose={() => setIdeasFor(null)}
+        profile={profile}
+        trip={trip}
+        section={ideasFor}
+        dayLabel={ideasFor ? (days.includes(ideasFor.day) ? dayLabel(ideasFor.day) : prettyDate(ideasFor.day)) : ''}
         items={items}
         urls={urls}
         onSaved={load}

@@ -2,7 +2,7 @@
 
 export type Progress = (message: string, fraction?: number) => void
 
-const MAX_INPUT = 1600 // px — size sent to the background remover
+const MAX_INPUT = 1280 // px — size sent to the background remover (it works at ~1024 internally)
 const MAX_OUTPUT = 1024 // px — size we store
 
 async function loadBitmap(file: Blob): Promise<ImageBitmap> {
@@ -96,6 +96,147 @@ function guessColour(c: HTMLCanvasElement): string | null {
   return top
 }
 
+type Model = 'isnet_fp16' | 'isnet_quint8'
+type ProgressFn = (key: string, current: number, total: number) => void
+
+// The first model is the normal one; the fallback is a smaller download that needs less memory.
+// They are different settings, so a failed first start-up is not reused by the library's cache.
+// On phones the smaller model goes first: it's much lighter to run (less heat and battery) and the
+// cut-outs look nearly the same. Computers start with the sharper one.
+const isPhone = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+const MODELS: readonly Model[] = isPhone ? ['isnet_quint8', 'isnet_fp16'] : ['isnet_fp16', 'isnet_quint8']
+
+// The remover holds a large model in memory. Shut it down when it hasn't been used for a while,
+// so the phone can free that memory and cool down.
+const IDLE_MS = 90_000
+let idleTimer: ReturnType<typeof setTimeout> | undefined
+function scheduleIdleShutdown() {
+  clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    if (pending.size || !worker) return
+    worker.terminate()
+    worker = null
+    warmUp = null
+  }, IDLE_MS)
+}
+
+/* ---------- background remover, run in a Web Worker (keeps the screen responsive) ---------- */
+
+let worker: Worker | null = null
+let workerBroken = false
+let nextId = 1
+const pending = new Map<number, { resolve: (b: Blob | undefined) => void; reject: (e: Error) => void; progress?: ProgressFn }>()
+
+function getWorker(): Worker | null {
+  if (workerBroken || typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') return null
+  if (worker) return worker
+  try {
+    worker = new Worker(new URL('./bgWorker.ts', import.meta.url), { type: 'module' })
+  } catch (e) {
+    console.warn('Background worker unavailable, using the main thread', e)
+    workerBroken = true
+    return null
+  }
+  worker.onmessage = (e: MessageEvent<{ id: number; ok?: boolean; blob?: Blob; error?: string; progress?: { key: string; current: number; total: number } }>) => {
+    const m = e.data
+    const job = pending.get(m.id)
+    if (!job) return
+    if (m.progress) return job.progress?.(m.progress.key, m.progress.current, m.progress.total)
+    pending.delete(m.id)
+    if (!pending.size) scheduleIdleShutdown()
+    if (m.ok) job.resolve(m.blob)
+    else job.reject(new Error(m.error || 'Background removal failed'))
+  }
+  worker.onerror = (e) => {
+    // the worker itself could not start or crashed: fail its jobs and use the main thread from now on
+    console.warn('Background worker failed', e)
+    workerBroken = true
+    worker?.terminate()
+    worker = null
+    for (const [, job] of pending) job.reject(new Error('worker-crashed'))
+    pending.clear()
+  }
+  return worker
+}
+
+function inWorker(w: Worker, msg: { type: 'preload'; model: Model } | { type: 'remove'; model: Model; image: Blob }, progress?: ProgressFn) {
+  const id = nextId++
+  return new Promise<Blob | undefined>((resolve, reject) => {
+    pending.set(id, { resolve, reject, progress })
+    w.postMessage({ id, ...msg })
+  })
+}
+
+type Remover = typeof import('@imgly/background-removal')
+let removerModule: Promise<Remover> | null = null
+function loadRemover(): Promise<Remover> {
+  if (!removerModule) {
+    removerModule = import('@imgly/background-removal').catch((e) => {
+      removerModule = null // let the next try load it again
+      throw e
+    })
+  }
+  return removerModule
+}
+
+/** Runs one removal: in the worker when possible, otherwise on the main thread. */
+async function removeOnce(image: Blob, model: Model, progress: ProgressFn): Promise<Blob> {
+  const w = getWorker()
+  if (w) {
+    try {
+      const b = await inWorker(w, { type: 'remove', model, image }, progress)
+      if (b) return b
+    } catch (e) {
+      if ((e as Error).message !== 'worker-crashed') throw e
+    }
+  }
+  const mod = await loadRemover().catch(() => {
+    throw new Error('The background remover could not load. Check your connection, or turn off “Remove background”.')
+  })
+  return mod.removeBackground(image, { model, output: { format: 'image/png' }, progress })
+}
+
+let warmUp: Promise<void> | null = null
+
+/**
+ * Starts downloading and starting the background remover in the background, so the first photo
+ * doesn't have to wait for it (and isn't the one that fails if the phone is slow).
+ */
+export function preloadBackgroundRemover() {
+  if (warmUp) return warmUp
+  const w = getWorker()
+  const run = w
+    ? inWorker(w, { type: 'preload', model: MODELS[0] }).then(() => undefined)
+    : loadRemover().then((m) => m.preload({ model: MODELS[0] }))
+  warmUp = run.catch((e) => {
+    console.warn('Background remover warm-up failed', e)
+    warmUp = null
+  })
+  return warmUp
+}
+
+async function removeBackgroundWithRetry(input: Blob, onProgress?: Progress): Promise<Blob> {
+  // if a warm-up is still running, let it finish rather than starting a second download
+  if (warmUp) await warmUp
+  const progress: ProgressFn = (key, current, total) => {
+    if (key.startsWith('fetch')) onProgress?.('Downloading the background remover', total ? current / total : undefined)
+    else onProgress?.('Removing the background', undefined)
+  }
+  let lastError: unknown
+  for (const model of MODELS) {
+    try {
+      return await removeOnce(input, model, progress)
+    } catch (e) {
+      console.error('Background removal failed with', model, e)
+      lastError = e
+      if ((e as Error).message?.startsWith('The background remover could not load')) throw e
+      onProgress?.('Trying again', undefined)
+    }
+  }
+  console.error(lastError)
+  throw new Error('Background removal failed on this device. You can save the photo without removing it.')
+}
+
 export interface PreparedImage {
   blob: Blob
   url: string
@@ -114,26 +255,8 @@ export async function prepareImage(file: Blob, removeBg: boolean, onProgress?: P
 
   if (removeBg) {
     onProgress?.('Loading the background remover (first time takes a minute)', 0)
-    let removeBackground: typeof import('@imgly/background-removal').removeBackground
-    try {
-      ;({ removeBackground } = await import('@imgly/background-removal'))
-    } catch {
-      throw new Error('The background remover could not load. Check your connection, or turn off “Remove background”.')
-    }
     const input = await toBlob(canvas, 'image/png')
-    let result: Blob
-    try {
-      result = await removeBackground(input, {
-        output: { format: 'image/png' },
-        progress: (key: string, current: number, total: number) => {
-          if (key.startsWith('fetch')) onProgress?.('Downloading the background remover', total ? current / total : undefined)
-          else onProgress?.('Removing the background', undefined)
-        },
-      })
-    } catch (e) {
-      console.error(e)
-      throw new Error('Background removal failed on this device. You can save the photo without removing it.')
-    }
+    const result = await removeBackgroundWithRetry(input, onProgress)
     const bmp = await loadBitmap(result)
     const { c, ctx } = canvasFor(bmp.width, bmp.height)
     ctx.drawImage(bmp, 0, 0)

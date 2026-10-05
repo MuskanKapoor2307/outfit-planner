@@ -52,7 +52,7 @@ async function gemini(key: string, model: string, system: string, text: string, 
 async function claude(key: string, model: string, system: string, text: string, images: AiImage[]) {
   const body = {
     model,
-    max_tokens: 1500,
+    max_tokens: 3000, // room for 2-3 outfit options
     system,
     messages: [{
       role: 'user',

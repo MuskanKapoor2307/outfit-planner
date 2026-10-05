@@ -25,7 +25,7 @@ export default function ItemGrid({
             onClick={() => onPick(it)}
             aria-pressed={selected ? idx >= 0 : undefined}
           >
-            <span className="pic">{urls[it.image_path] ? <img src={urls[it.image_path]} alt="" loading="lazy" /> : null}</span>
+            <span className="pic">{urls[it.image_path] ? <img src={urls[it.image_path]} alt="" loading="lazy" decoding="async" /> : null}</span>
             {idx >= 0 && <span className="picked">{idx + 1}</span>}
             <span className="label">{it.name}</span>
             <span className="sub">

@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
-import Link from 'next/link'
 import Sheet from './Sheet'
 import Icon, { AiBadge } from './Icon'
 import ItemGrid from './ItemGrid'
@@ -12,7 +11,7 @@ import { CATEGORIES, OUTFIT_AESTHETICS, friendlyError } from '@/lib/constants'
 import { useAiSettings } from '@/lib/ai/useAi'
 import { PROVIDERS, getKey, keyStatus, saveSettings, type ProviderId } from '@/lib/ai/settings'
 import { AiError, callProvider, type AiImage } from '@/lib/ai/providers'
-import { ASKS, SYSTEM_PROMPT, buildPrompt, manualPrompt, parseResult, pinterestUrl, type AskType, type StylistResult } from '@/lib/ai/stylist'
+import { ASKS, SYSTEM_PROMPT, buildPrompt, imagesUrl, manualPrompt, parseResult, pinterestUrl, type AskType, type StylistResult } from '@/lib/ai/stylist'
 import { toAiImage } from '@/lib/ai/images'
 import type { Section, StyleProfile, Trip, WardrobeItem } from '@/lib/types'
 
@@ -47,7 +46,15 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
   const [aesthetic, setAesthetic] = useState('')
   const [note, setNote] = useState('')
   const [preferOwned, setPreferOwned] = useState(true)
-  const [result, setResult] = useState<StylistResult | null>(null)
+  const [results, setResults] = useState<StylistResult[]>([])
+  const [sel, setSel] = useState(0)
+  const [savedLooks, setSavedLooks] = useState<number[]>([])
+  const result: StylistResult | null = results[sel] ?? null
+  const showLooks = (r: StylistResult[]) => {
+    setResults(r)
+    setSel(0)
+    setSavedLooks([])
+  }
   const [modelUsed, setModelUsed] = useState('')
   const [error, setError] = useState<{ text: string; quota?: boolean } | null>(null)
   const [thinkingIdx, setThinkingIdx] = useState(0)
@@ -66,7 +73,9 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
     setCustomAsk('')
     setAesthetic('')
     setNote('')
-    setResult(null)
+    setResults([])
+    setSel(0)
+    setSavedLooks([])
     setError(null)
     setManual(null)
     setPasted('')
@@ -161,7 +170,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
       }
       const model = settings!.models[useProvider]
       const out = await callProvider(useProvider, key, model, SYSTEM_PROMPT, prompt.text, imgs.map((i) => i.ai))
-      setResult(parseResult(out.text, [...prompt.pieceCodes, ...prompt.wardrobeCodes]))
+      showLooks(parseResult(out.text, [...prompt.pieceCodes, ...prompt.wardrobeCodes]))
       setModelUsed(out.model)
       setStage('result')
     } catch (e) {
@@ -179,7 +188,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
   function readPasted() {
     if (!manual) return
     try {
-      setResult(parseResult(pasted, manual.codes))
+      showLooks(parseResult(pasted, manual.codes))
       setModelUsed('your chat app')
       setStage('result')
       setError(null)
@@ -250,8 +259,9 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
         if (e2) throw e2
       }
       toast(`Saved to ${section.name}`)
+      setSavedLooks((l) => [...l, sel])
       onSaved()
-      onClose()
+      if (results.length <= 1) onClose()
     } catch (e) {
       setError({ text: friendlyError(e) })
     } finally {
@@ -273,7 +283,11 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
       <>
         <button className="btn ghost" onClick={() => setStage('setup')} style={{ marginRight: 'auto' }}><Icon name="left" /> Change request</button>
         <button className="btn ai" onClick={() => run()}><Icon name="sparkle" /> Try again</button>
-        <button className="btn primary" onClick={saveLook} disabled={saving}>{saving ? <><span className="spinner" aria-hidden /> Saving</> : 'Save as a look'}</button>
+        {savedLooks.includes(sel) ? (
+          <button className="btn primary" onClick={onClose}><Icon name="check" /> Saved · Done</button>
+        ) : (
+          <button className="btn primary" onClick={saveLook} disabled={saving}>{saving ? <><span className="spinner" aria-hidden /> Saving</> : results.length > 1 ? `Save option ${sel + 1}` : 'Save as a look'}</button>
+        )}
       </>
     ) : stage === 'manual' ? (
       <>
@@ -288,7 +302,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
         {aiOff ? (
           <div className="empty-state">
             <p>AI features are turned off on this device.</p>
-            <Link className="btn" href="/settings/ai">Open AI settings</Link>
+            <a className="btn" href="/settings/ai">Open AI settings</a>
           </div>
         ) : stage === 'thinking' ? (
           <div className="ai-thinking" aria-live="polite">
@@ -321,12 +335,22 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
             </ol>
             <label className="field">
               <span>The reply</span>
-              <textarea className="textarea" style={{ minHeight: 140 }} value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder='Paste the reply here. It starts with { "look_name": …' />
+              <textarea className="textarea" style={{ minHeight: 140 }} value={pasted} onChange={(e) => setPasted(e.target.value)} placeholder='Paste the reply here. It starts with { "looks": …' />
             </label>
             {error && <p className="alert error" role="alert"><Icon name="alert" /> {error.text}</p>}
           </div>
         ) : stage === 'result' && result ? (
-          <div className="result">
+          <div className="result" key={sel}>
+            {results.length > 1 && (
+              <div className="look-tabs" role="tablist" aria-label="Outfit options">
+                {results.map((r, i) => (
+                  <button key={i} type="button" role="tab" className="chip" aria-selected={i === sel} aria-pressed={i === sel} onClick={() => setSel(i)}>
+                    {savedLooks.includes(i) && <Icon name="check" />} Option {i + 1}
+                    <small>{r.look_name}</small>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="stack" style={{ ['--gap' as string]: '0.4rem' }}>
               <h3>{result.look_name}</h3>
               {result.summary && <p>{result.summary}</p>}
@@ -377,7 +401,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
                 <div className="shop-list">
                   {result.to_buy.map((b) => (
                     <div key={b} className="shop-row">
-                      <div className="shop-main"><span>{b}</span></div>
+                      <div className="shop-main"><span>{b}</span> <a className="small" href={imagesUrl(b)} target="_blank" rel="noopener noreferrer">See photos</a></div>
                       <button className="btn small" disabled={addedToList.includes(b)} onClick={() => addToList(b)}>
                         {addedToList.includes(b) ? <><Icon name="check" /> On the list</> : <><Icon name="plus" /> Shopping list</>}
                       </button>
@@ -387,13 +411,17 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
               </div>
             )}
             {result.pinterest_searches.length > 0 && (
-              <div className="stack" style={{ ['--gap' as string]: '0.5rem' }}>
-                <strong className="small">See similar looks on Pinterest</strong>
-                <div className="chips">
-                  {result.pinterest_searches.map((q) => (
-                    <a key={q} className="chip" href={pinterestUrl(q)} target="_blank" rel="noopener noreferrer">{q} <Icon name="link" /></a>
-                  ))}
-                </div>
+              <div className="stack photo-ideas" style={{ ['--gap' as string]: '0.5rem' }}>
+                <strong className="small"><Icon name="image" /> Photo ideas for this look</strong>
+                {result.pinterest_searches.map((q) => (
+                  <div key={q} className="photo-idea">
+                    <span>{q}</span>
+                    <span className="row">
+                      <a className="btn small" href={pinterestUrl(q)} target="_blank" rel="noopener noreferrer">Pinterest <Icon name="link" /></a>
+                      <a className="btn small" href={imagesUrl(q)} target="_blank" rel="noopener noreferrer">Photos <Icon name="link" /></a>
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
             {error && <p className="alert error" role="alert"><Icon name="alert" /> {error.text}</p>}
@@ -483,7 +511,7 @@ export default function AiStylistSheet({ open, onClose, profile, trip, section, 
                 </select>
               </div>
               {status === 'none' ? (
-                <span className="ai-note"><Icon name="key" /> No key set up for {providerInfo.name} on this device. <Link href="/settings/ai">Set it up</Link></span>
+                <span className="ai-note"><Icon name="key" /> No key set up for {providerInfo.name} on this device. <a href="/settings/ai">Set it up</a></span>
               ) : (
                 <span className="ai-note">
                   {provider === 'manual' ? 'You’ll copy a prompt into your own app. Free here.' : `One request per click.${status === 'locked' ? ' Your key is PIN-locked; you’ll be asked for the PIN.' : ''}`}
